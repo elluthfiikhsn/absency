@@ -408,72 +408,6 @@ def profil():
                          face_data=face_data,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
-@app.route('/setup_face', methods=['POST'])
-@login_required
-def setup_face():
-    """Setup face recognition for user"""
-    if not FACE_RECOGNITION_AVAILABLE:
-        return jsonify({'success': False, 'message': 'Face recognition not available'})
-    
-    if 'face_image' not in request.files:
-        return jsonify({'success': False, 'message': 'No face image provided'})
-    
-    face_file = request.files['face_image']
-    if face_file.filename == '':
-        return jsonify({'success': False, 'message': 'No file selected'})
-    
-    if not allowed_file(face_file.filename):
-        return jsonify({'success': False, 'message': 'Invalid file format'})
-    
-    try:
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-        
-        # Create user-specific folder
-        user_folder = os.path.join(app.config['FACES_FOLDER'], f"{user['full_name']}_{user['id']}")
-        if not os.path.exists(user_folder):
-            os.makedirs(user_folder)
-        
-        # Save original image
-        filename = secure_filename(f"{user['id']}_face.jpg")
-        image_path = os.path.join(user_folder, filename)
-        face_file.save(image_path)
-        
-        # Process with face_recognition
-        image = face_recognition.load_image_file(image_path)
-        face_encodings = face_recognition.face_encodings(image)
-        
-        if not face_encodings:
-            os.remove(image_path)
-            conn.close()
-            return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
-        
-        if len(face_encodings) > 1:
-            os.remove(image_path)
-            conn.close()
-            return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
-        
-        # Get the face encoding
-        face_encoding = face_encodings[0]
-        encoding_json = json.dumps(face_encoding.tolist())
-        
-        # Deactivate old face data
-        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-        
-        # Save new encoding to database
-        conn.execute('''
-            INSERT INTO face_data (user_id, face_encoding, photo_path, active)
-            VALUES (?, ?, ?, 1)
-        ''', (session['user_id'], encoding_json, image_path))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Face recognition berhasil disetup!'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-
 @app.route('/remove_face', methods=['POST'])
 @login_required
 def remove_face():
@@ -2175,6 +2109,7 @@ def setup_face():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
 
+
 @app.route('/remove_face', methods=['POST'])
 @login_required
 def remove_face():
@@ -2267,6 +2202,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
