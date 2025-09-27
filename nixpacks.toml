@@ -1,0 +1,24 @@
+# nixpacks.toml - Railway deployment configuration
+[phases.setup]
+nixPkgs = [
+    "cmake", 
+    "pkg-config", 
+    "dlib", 
+    "blas", 
+    "lapack", 
+    "gcc",
+    "g++",
+    "make"
+]
+
+[phases.install]
+cmds = [
+    "pip install --upgrade pip",
+    "pip install cmake",
+    "pip install dlib==19.24.0",
+    "pip install face-recognition==1.3.0",
+    "pip install -r requirements.txt"
+]
+
+[start]
+cmd = "gunicorn app:app --bind 0.0.0.0:$PORT"
