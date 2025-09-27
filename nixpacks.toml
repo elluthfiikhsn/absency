@@ -1,4 +1,3 @@
-# nixpacks.toml - Railway deployment configuration
 [phases.setup]
 nixPkgs = [
     "cmake", 
