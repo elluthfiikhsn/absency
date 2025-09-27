@@ -323,6 +323,21 @@
             transform: translateY(-1px);
         }
 
+        .btn-outline-success {
+            color: #28a745;
+            border-color: rgba(40, 167, 69, 0.5);
+            border-radius: 15px;
+            background: rgba(40, 167, 69, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline-success:hover {
+            background: rgba(40, 167, 69, 0.2);
+            border-color: #28a745;
+            color: white;
+            transform: translateY(-1px);
+        }
+
         .text-success {
             color: #28a745 !important;
         }
@@ -581,7 +596,7 @@
         </div>
     </div>
 
-    <!-- Face Setup Modal -->
+    <!-- Face Setup Modal - Enhanced for Railway -->
     <div class="modal fade" id="faceSetupModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -592,33 +607,51 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- Browser Support Check -->
+                    <div class="alert alert-info" id="browserCheckAlert" style="display: none;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Info Browser:</strong>
+                        <div id="browserInfo"></div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="text-center mb-3">
-                                <video id="camera" class="camera-preview" autoplay muted style="display: none;"></video>
+                                <video id="camera" class="camera-preview" autoplay muted playsinline style="display: none;"></video>
                                 <canvas id="canvas" style="display: none;"></canvas>
-                                <div id="camera-placeholder"
-                                    class="camera-preview d-flex align-items-center justify-content-center">
+                                <div id="camera-placeholder" class="camera-preview d-flex align-items-center justify-content-center">
                                     <div class="text-center">
                                         <i class="fas fa-camera fa-3x text-white-50 mb-2"></i>
                                         <div class="text-white-50">Camera Preview</div>
+                                        <small class="text-muted">Klik tombol untuk mengaktifkan</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="d-grid gap-2">
-                                <button type="button" class="btn face-capture-btn" onclick="startCamera()">
+                                <button type="button" class="btn face-capture-btn" onclick="startCameraEnhanced()" id="startCameraBtn">
                                     <i class="fas fa-video me-2"></i>Aktifkan Kamera
                                 </button>
-                                <button type="button" class="btn btn-outline-primary" onclick="capturePhoto()"
-                                    id="captureBtn" disabled>
+                                
+                                <button type="button" class="btn btn-outline-primary" onclick="capturePhoto()" id="captureBtn" disabled>
                                     <i class="fas fa-camera me-2"></i>Ambil Foto
                                 </button>
+
+                                <!-- Alternative: File Upload (Always Available) -->
                                 <div class="mt-2">
-                                    <label for="face_upload" class="form-label small">Atau upload foto:</label>
-                                    <input type="file" class="form-control form-control-sm" id="face_upload"
-                                        accept="image/*">
+                                    <label for="face_upload" class="form-label small">
+                                        <i class="fas fa-upload me-1"></i>Upload foto dari perangkat:
+                                    </label>
+                                    <input type="file" class="form-control form-control-sm" id="face_upload" accept="image/*" capture="user">
+                                    <small class="text-muted">Mendukung: JPG, PNG (max 5MB)</small>
+                                </div>
+
+                                <!-- Mobile Camera Alternative -->
+                                <div class="d-md-none mt-2">
+                                    <button type="button" class="btn btn-outline-success btn-sm w-100" onclick="openMobileCamera()">
+                                        <i class="fas fa-mobile-alt me-2"></i>Buka Kamera Mobile
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -633,14 +666,14 @@
                                 <li>Pencahayaan yang cukup (tidak terlalu gelap/terang)</li>
                                 <li>Posisi wajah menghadap kamera langsung</li>
                                 <li>Hanya satu wajah dalam foto</li>
+                                <li><strong>Jika kamera tidak berfungsi, gunakan upload foto</strong></li>
                             </ul>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="button" class="btn btn-success" onclick="submitFaceSetup()" id="submitFaceBtn"
-                        disabled>
+                    <button type="button" class="btn btn-success" onclick="submitFaceSetup()" id="submitFaceBtn" disabled>
                         <i class="fas fa-save me-2"></i>Simpan Face Recognition
                     </button>
                 </div>
@@ -679,26 +712,243 @@
             showSetupFace();
         }
 
-        // Camera functions
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(function (stream) {
-                    camera = stream;
-                    const videoElement = document.getElementById('camera');
-                    const placeholder = document.getElementById('camera-placeholder');
+        // Enhanced camera permission check
+        async function checkCameraPermissions() {
+            try {
+                // Check if navigator.mediaDevices is available
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera API not supported in this browser');
+                }
 
-                    videoElement.srcObject = stream;
-                    videoElement.style.display = 'block';
-                    placeholder.style.display = 'none';
+                // Check permissions
+                if (navigator.permissions) {
+                    const permission = await navigator.permissions.query({name: 'camera'});
+                    console.log('Camera permission status:', permission.state);
+                    
+                    if (permission.state === 'denied') {
+                        throw new Error('Camera access denied by user');
+                    }
+                }
 
-                    document.getElementById('captureBtn').disabled = false;
-                })
-                .catch(function (err) {
-                    console.log("Error accessing camera: " + err);
-                    alert("Error mengakses kamera: " + err.message);
-                });
+                return true;
+            } catch (error) {
+                console.error('Camera permission check failed:', error);
+                return false;
+            }
         }
 
+        // Enhanced camera start function for Railway
+        async function startCameraEnhanced() {
+            const startBtn = document.getElementById('startCameraBtn');
+            const placeholder = document.getElementById('camera-placeholder');
+            
+            try {
+                // Show loading state
+                startBtn.disabled = true;
+                startBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengakses...';
+                
+                placeholder.innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border text-light mb-2"></div>
+                        <div class="text-white-50">Meminta izin kamera...</div>
+                    </div>
+                `;
+
+                // Check browser support
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Browser tidak mendukung akses kamera. Gunakan upload foto sebagai alternatif.');
+                }
+
+                // Check if running on HTTPS (required for camera access)
+                if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                    throw new Error('Kamera memerlukan koneksi HTTPS. Gunakan upload foto sebagai alternatif.');
+                }
+
+                // Request camera access with fallback
+                const constraints = {
+                    video: {
+                        width: { ideal: 640, max: 1280 },
+                        height: { ideal: 480, max: 720 },
+                        facingMode: 'user'
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                camera = stream;
+                const videoElement = document.getElementById('camera');
+                
+                videoElement.srcObject = stream;
+                
+                // Wait for video to load
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                        resolve();
+                    };
+                });
+                
+                videoElement.style.display = 'block';
+                placeholder.style.display = 'none';
+
+                document.getElementById('captureBtn').disabled = false;
+                
+                // Update button
+                startBtn.innerHTML = '<i class="fas fa-video me-2"></i>Kamera Aktif';
+                startBtn.classList.add('btn-success');
+                startBtn.classList.remove('face-capture-btn');
+
+            } catch (err) {
+                console.error("Camera error:", err);
+                
+                // Reset button
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-video me-2"></i>Aktifkan Kamera';
+                
+                // Show error in placeholder
+                placeholder.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-2"></i>
+                        <div class="text-warning">Kamera Tidak Tersedia</div>
+                        <small class="text-muted">Gunakan upload foto di bawah</small>
+                    </div>
+                `;
+                
+                // Show detailed error
+                let errorMessage = 'Kamera tidak dapat diakses:\n\n';
+                
+                switch(err.name) {
+                    case 'NotAllowedError':
+                        errorMessage += '❌ Izin kamera ditolak\n💡 Klik ikon kamera di address bar dan izinkan akses';
+                        break;
+                    case 'NotFoundError':
+                        errorMessage += '❌ Kamera tidak ditemukan\n💡 Pastikan kamera terhubung';
+                        break;
+                    case 'NotSupportedError':
+                    case 'TypeError':
+                        errorMessage += '❌ Browser tidak mendukung\n💡 Gunakan Chrome, Firefox, atau Safari terbaru';
+                        break;
+                    default:
+                        errorMessage += `❌ ${err.message}\n💡 Gunakan upload foto sebagai alternatif`;
+                }
+                
+                errorMessage += '\n\n✅ Anda tetap bisa upload foto dari galeri/kamera manual.';
+                
+                // Show browser check info
+                showBrowserInfo();
+                
+                alert(errorMessage);
+            }
+        }
+
+        // Show browser compatibility info
+        function showBrowserInfo() {
+            const browserCheckAlert = document.getElementById('browserCheckAlert');
+            const browserInfo = document.getElementById('browserInfo');
+            
+            const info = {
+                'Protocol': location.protocol,
+                'HTTPS': location.protocol === 'https:' ? '✅ Ya' : '❌ Tidak (diperlukan untuk kamera)',
+                'MediaDevices': navigator.mediaDevices ? '✅ Didukung' : '❌ Tidak didukung',
+                'getUserMedia': (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? '✅ Didukung' : '❌ Tidak didukung',
+                'Browser': navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge)/)?.[0] || 'Unknown'
+            };
+            
+            browserInfo.innerHTML = Object.entries(info)
+                .map(([key, value]) => `<small><strong>${key}:</strong> ${value}</small>`)
+                .join('<br>');
+            
+            browserCheckAlert.style.display = 'block';
+        }
+
+        // Mobile camera alternative
+        function openMobileCamera() {
+            const input = document.getElementById('face_upload');
+            // This will open camera on mobile devices
+            input.setAttribute('capture', 'camera');
+            input.click();
+        }
+
+        // Enhanced file upload handler
+        document.getElementById('face_upload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file
+                if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                    alert('File terlalu besar. Maksimal 5MB.');
+                    return;
+                }
+                
+                if (!file.type.match('image.*')) {
+                    alert('File harus berupa gambar (JPG, PNG, dll).');
+                    return;
+                }
+                
+                capturedImageBlob = file;
+                document.getElementById('submitFaceBtn').disabled = false;
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    showImagePreview(e.target.result, 'Foto yang diupload');
+                };
+                reader.readAsDataURL(file);
+                
+                // Hide camera if active
+                stopCamera();
+                
+                // Update UI
+                const placeholder = document.getElementById('camera-placeholder');
+                placeholder.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
+                        <div class="text-success">Foto Siap</div>
+                        <small class="text-muted">File berhasil dipilih</small>
+                    </div>
+                `;
+            }
+        });
+
+        // Show image preview
+        function showImagePreview(src, title) {
+            const preview = document.createElement('img');
+            preview.src = src;
+            preview.className = 'camera-preview';
+            preview.style.border = '3px solid #28a745';
+            preview.title = title;
+            preview.id = 'imagePreview';
+            
+            // Replace existing preview
+            const existingPreview = document.getElementById('imagePreview');
+            if (existingPreview) {
+                existingPreview.remove();
+            }
+            
+            const camera = document.getElementById('camera');
+            camera.style.display = 'none';
+            camera.parentNode.appendChild(preview);
+        }
+
+        // Stop camera function
+        function stopCamera() {
+            if (camera) {
+                camera.getTracks().forEach(track => track.stop());
+                camera = null;
+                
+                const videoElement = document.getElementById('camera');
+                videoElement.style.display = 'none';
+                
+                const startBtn = document.getElementById('startCameraBtn');
+                startBtn.innerHTML = '<i class="fas fa-video me-2"></i>Aktifkan Kamera';
+                startBtn.disabled = false;
+                startBtn.classList.remove('btn-success');
+                startBtn.classList.add('face-capture-btn');
+                
+                document.getElementById('captureBtn').disabled = true;
+            }
+        }
+
+        // Updated capture photo function
         function capturePhoto() {
             const video = document.getElementById('camera');
             const canvas = document.getElementById('canvas');
@@ -710,17 +960,9 @@
 
             canvas.toBlob(function (blob) {
                 capturedImageBlob = blob;
-
-                // Show captured image preview
-                const preview = document.createElement('img');
-                preview.src = URL.createObjectURL(blob);
-                preview.className = 'camera-preview';
-                preview.style.border = '3px solid #28a745';
-                preview.id = 'capturedPreview';
-
-                video.style.display = 'none';
-                video.parentNode.appendChild(preview);
-
+                
+                showImagePreview(URL.createObjectURL(blob), 'Foto yang diambil');
+                
                 // Update buttons
                 const captureBtn = document.getElementById('captureBtn');
                 captureBtn.innerHTML = '<i class="fas fa-redo me-2"></i>Ambil Ulang';
@@ -731,14 +973,15 @@
             }, 'image/jpeg', 0.8);
         }
 
+        // Enhanced retake photo
         function retakePhoto() {
-            // Remove preview image
-            const preview = document.getElementById('capturedPreview');
+            // Remove preview
+            const preview = document.getElementById('imagePreview');
             if (preview) {
                 preview.remove();
             }
 
-            // Show video again
+            // Show video
             const video = document.getElementById('camera');
             video.style.display = 'block';
 
@@ -751,24 +994,7 @@
             capturedImageBlob = null;
         }
 
-        // Handle file upload
-        document.getElementById('face_upload').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            if (file) {
-                capturedImageBlob = file;
-                document.getElementById('submitFaceBtn').disabled = false;
-
-                // Hide camera if active
-                if (camera) {
-                    camera.getTracks().forEach(track => track.stop());
-                    camera = null;
-                    document.getElementById('camera').style.display = 'none';
-                    document.getElementById('camera-placeholder').style.display = 'flex';
-                }
-            }
-        });
-
-        // Submit face setup
+        // Enhanced submit function
         function submitFaceSetup() {
             if (!capturedImageBlob) {
                 alert('Silakan ambil foto atau upload gambar terlebih dahulu');
@@ -780,6 +1006,7 @@
 
             // Show loading
             const submitBtn = document.getElementById('submitFaceBtn');
+            const originalContent = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
 
@@ -787,23 +1014,23 @@
                 method: 'POST',
                 body: formData
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Face recognition berhasil disetup!');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error.message);
-                })
-                .finally(() => {
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Face recognition berhasil disetup!');
+                    location.reload();
+                } else {
+                    alert('❌ Error: ' + data.message);
                     submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Simpan Face Recognition';
-                    bootstrap.Modal.getInstance(document.getElementById('faceSetupModal')).hide();
-                });
+                    submitBtn.innerHTML = originalContent;
+                }
+            })
+            .catch(error => {
+                console.error('Submit error:', error);
+                alert('❌ Error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalContent;
+            });
         }
 
         // Remove face recognition
@@ -815,27 +1042,67 @@
                         'Content-Type': 'application/json',
                     }
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Face recognition berhasil dihapus!');
-                            location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        alert('Error: ' + error.message);
-                    });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Face recognition berhasil dihapus!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
             }
         }
 
-        // Stop camera when modal is closed
+        // Clean up when modal closes
         document.getElementById('faceSetupModal').addEventListener('hidden.bs.modal', function () {
-            if (camera) {
-                camera.getTracks().forEach(track => track.stop());
-                camera = null;
+            stopCamera();
+            capturedImageBlob = null;
+            document.getElementById('submitFaceBtn').disabled = true;
+            
+            // Reset UI
+            const placeholder = document.getElementById('camera-placeholder');
+            placeholder.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-camera fa-3x text-white-50 mb-2"></i>
+                    <div class="text-white-50">Camera Preview</div>
+                    <small class="text-muted">Klik tombol untuk mengaktifkan</small>
+                </div>
+            `;
+            
+            // Hide browser info
+            document.getElementById('browserCheckAlert').style.display = 'none';
+            
+            // Remove preview
+            const preview = document.getElementById('imagePreview');
+            if (preview) {
+                preview.remove();
             }
+            
+            // Reset file input
+            document.getElementById('face_upload').value = '';
+        });
+
+        // Test camera support on page load
+        async function testCameraSupport() {
+            const results = {
+                mediaDevicesSupported: !!navigator.mediaDevices,
+                getUserMediaSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                isSecureContext: window.isSecureContext,
+                protocol: window.location.protocol,
+                userAgent: navigator.userAgent
+            };
+            
+            console.log('Camera Support Test Results:', results);
+            return results;
+        }
+
+        // Call test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            testCameraSupport();
         });
     </script>
 </body>
