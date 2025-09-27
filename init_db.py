@@ -93,11 +93,11 @@ def init_database():
         VALUES (?, ?, ?, ?, ?)
     ''', ('admin', 'Administrator', 'admin@example.com', admin_password, 'admin'))
     
-    # Create default coordinate (Jakarta)
-    cursor.execute('''
-        INSERT OR IGNORE INTO coordinates (name, latitude, longitude, radius, active)
-        VALUES (?, ?, ?, ?, ?)
-    ''', ('Kantor Pusat Jakarta', -6.2088, 106.8456, 100, 1))
+    # # Create default coordinate (Jakarta)
+    # cursor.execute('''
+    #     INSERT OR IGNORE INTO coordinates (name, latitude, longitude, radius, active)
+    #     VALUES (?, ?, ?, ?, ?)
+    # ''', ('Kantor Pusat Jakarta', -6.2088, 106.8456, 100, 1))
     
     conn.commit()
     conn.close()
@@ -107,3 +107,4 @@ def init_database():
 
 if __name__ == '__main__':
     init_database()
+
