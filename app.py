@@ -155,9 +155,9 @@ def login_required(f):
     return decorated_function
 
 def verify_face_for_attendance(image_file, user_id):
-    """Verify face for attendance"""
+    """Verify face for attendance - dengan fallback"""
     if not FACE_RECOGNITION_AVAILABLE:
-        return True, "Face recognition not available, skipping verification"
+        return True, f"Face recognition tidak tersedia ({FACE_RECOGNITION_ERROR}), attendance diizinkan"
     
     try:
         # Get stored face encoding from database
@@ -168,19 +168,19 @@ def verify_face_for_attendance(image_file, user_id):
         ).fetchone()
         conn.close()
         
-        if not face_data:
-            # No face data stored, allow attendance but warn
-            return True, "No face data registered, attendance allowed"
+        if not face_data or not face_data['face_encoding']:
+            # No face encoding stored (fallback mode)
+            return True, "Face data tersimpan dalam mode fallback, attendance diizinkan"
         
         # Load stored encoding
-        stored_encoding = np.array(json.loads(face_data[0]))
+        stored_encoding = np.array(json.loads(face_data['face_encoding']))
         
         # Process uploaded image
         image = face_recognition.load_image_file(image_file)
         face_encodings = face_recognition.face_encodings(image)
         
         if not face_encodings:
-            return False, "Wajah tidak terdeteksi."
+            return False, "Wajah tidak terdeteksi dalam foto"
         
         if len(face_encodings) > 1:
             return False, "Terdeteksi lebih dari satu wajah!"
@@ -196,11 +196,10 @@ def verify_face_for_attendance(image_file, user_id):
             confidence = (1 - face_distance[0]) * 100
             return True, f"Wajah terverifikasi! Akurasi: {confidence:.1f}%"
         else:
-            return False, f"Wajah tidak dikenali."
+            return False, f"Wajah tidak dikenali (distance: {face_distance[0]:.3f})"
             
     except Exception as e:
-        return False, f"Error verifying face: {str(e)}"
-
+        return True, f"Error dalam verifikasi wajah ({str(e)}), attendance diizinkan"
 
 @app.route('/absensi')
 @login_required
@@ -2393,6 +2392,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
