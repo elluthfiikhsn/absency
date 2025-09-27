@@ -47,6 +47,10 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['FACES_FOLDER'] = 'faces'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['FACES_FOLDER'], exist_ok=True)
+
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -2241,8 +2245,6 @@ def index():
 
 if __name__ == '__main__':
     # Create directories if they don't exist
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['FACES_FOLDER'], exist_ok=True)
     
     # Initialize web registration
     if FACE_RECOGNITION_AVAILABLE:
@@ -2256,6 +2258,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
