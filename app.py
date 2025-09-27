@@ -408,38 +408,6 @@ def profil():
                          face_data=face_data,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
-@app.route('/remove_face', methods=['POST'])
-@login_required
-def remove_face():
-    """Remove face recognition for user"""
-    try:
-        conn = get_db_connection()
-        
-        # Get face data to remove files
-        face_data = conn.execute(
-            'SELECT photo_path FROM face_data WHERE user_id = ? AND active = 1',
-            (session['user_id'],)
-        ).fetchall()
-        
-        # Remove face data from database
-        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-        conn.commit()
-        conn.close()
-        
-        # Remove physical files
-        for data in face_data:
-            if data['photo_path'] and os.path.exists(data['photo_path']):
-                try:
-                    os.remove(data['photo_path'])
-                except Exception:
-                    pass  # Continue even if file removal fails
-        
-        return jsonify({'success': True, 'message': 'Face recognition berhasil dihapus!'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-
-
 @app.route('/add_coordinate', methods=['POST'])
 @login_required
 def add_coordinate():
@@ -2202,6 +2170,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
