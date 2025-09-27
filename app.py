@@ -2154,9 +2154,10 @@ if __name__ == '__main__':
         print("⚠️ Face recognition disabled - install required packages")
     
     # Production-ready settings
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
