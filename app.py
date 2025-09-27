@@ -2198,6 +2198,34 @@ def remove_face():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+    
+    
+@app.route('/debug/camera', methods=['GET'])
+def debug_camera():
+    """Debug camera capabilities"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Camera Debug</title>
+    </head>
+    <body>
+        <h2>Camera Debug Info</h2>
+        <div id="info"></div>
+        <script>
+            const info = [];
+            info.push('Protocol: ' + location.protocol);
+            info.push('Host: ' + location.host);
+            info.push('HTTPS: ' + (location.protocol === 'https:'));
+            info.push('Navigator.mediaDevices: ' + !!navigator.mediaDevices);
+            info.push('getUserMedia: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+            info.push('User Agent: ' + navigator.userAgent);
+            
+            document.getElementById('info').innerHTML = info.join('<br>');
+        </script>
+    </body>
+    </html>
+    """
 
 @app.route('/')
 def index():
@@ -2258,7 +2286,6 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
-
 
 
 
