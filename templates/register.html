@@ -191,7 +191,64 @@
                                 </div>
                                 <div id="password-match" class="mt-1"></div>
                             </div>
+                            <!-- Face Recognition Setup (Optional) -->
+                            <div class="mb-4">
+                                <div class="card"
+                                    style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                                    <div class="card-header bg-transparent border-0">
+                                        <h6 class="mb-0 text-white">
+                                            <i class="fas fa-face-smile me-2"></i>
+                                            Setup Face Recognition (Opsional)
+                                        </h6>
+                                        <small class="text-white-50">Untuk keamanan tambahan saat absensi</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="text-center mb-3">
+                                                    <video id="camera" class="camera-preview" autoplay muted
+                                                        style="display: none; width: 100%; max-width: 250px; height: 180px; border-radius: 10px;"></video>
+                                                    <canvas id="canvas" style="display: none;"></canvas>
+                                                    <div id="camera-placeholder"
+                                                        style="width: 100%; max-width: 250px; height: 180px; background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.3); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+                                                        <i class="fas fa-camera fa-2x text-white-50 mb-2"></i>
+                                                        <div class="text-white-50 small">Camera Preview</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="d-grid gap-2">
+                                                    <button type="button" class="btn btn-outline-light btn-sm"
+                                                        onclick="startCamera()">
+                                                        <i class="fas fa-video me-1"></i>Aktifkan Kamera
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success btn-sm"
+                                                        onclick="capturePhoto()" id="captureBtn" disabled>
+                                                        <i class="fas fa-camera me-1"></i>Ambil Foto
+                                                    </button>
+                                                    <div class="mt-2">
+                                                        <label for="face_image" class="form-label small text-white">Atau
+                                                            upload foto:</label>
+                                                        <input type="file" class="form-control form-control-sm"
+                                                            id="face_image" name="face_image" accept="image/*">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
+                                        <div class="mt-3">
+                                            <div class="alert alert-info"
+                                                style="background: rgba(23,162,184,0.2); border: 1px solid rgba(23,162,184,0.3); color: #17a2b8;">
+                                                <small>
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    <strong>Tips:</strong> Pastikan wajah terlihat jelas, pencahayaan
+                                                    cukup, dan hanya satu wajah dalam foto.
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="d-grid mb-3 mt-4">
                                 <button type="submit" class="btn btn-primary btn-register">
                                     <i class="fas fa-user-plus me-2"></i>
@@ -270,6 +327,113 @@
                 e.preventDefault();
                 alert('Password dan konfirmasi password tidak cocok!');
                 return;
+            }
+        });
+
+
+        // Face recognition variables
+        let camera = null;
+        let capturedImageBlob = null;
+
+        // Camera functions
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function (stream) {
+                    camera = stream;
+                    const videoElement = document.getElementById('camera');
+                    const placeholder = document.getElementById('camera-placeholder');
+
+                    videoElement.srcObject = stream;
+                    videoElement.style.display = 'block';
+                    placeholder.style.display = 'none';
+
+                    document.getElementById('captureBtn').disabled = false;
+                })
+                .catch(function (err) {
+                    console.log("Error accessing camera: " + err);
+                    alert("Error mengakses kamera. Anda bisa upload foto manual.");
+                });
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('camera');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            canvas.toBlob(function (blob) {
+                capturedImageBlob = blob;
+
+                // Show captured image preview
+                const preview = document.createElement('img');
+                preview.src = URL.createObjectURL(blob);
+                preview.style.cssText = 'width: 100%; max-width: 250px; height: 180px; object-fit: cover; border-radius: 10px; border: 3px solid #28a745;';
+                preview.id = 'capturedPreview';
+
+                video.style.display = 'none';
+                video.parentNode.appendChild(preview);
+
+                // Update buttons
+                const captureBtn = document.getElementById('captureBtn');
+                captureBtn.innerHTML = '<i class="fas fa-redo me-1"></i>Ambil Ulang';
+                captureBtn.onclick = retakePhoto;
+
+                // Create hidden file input with captured image
+                const dataTransfer = new DataTransfer();
+                const file = new File([blob], 'captured_face.jpg', { type: 'image/jpeg' });
+                dataTransfer.items.add(file);
+                document.getElementById('face_image').files = dataTransfer.files;
+
+            }, 'image/jpeg', 0.8);
+        }
+
+        function retakePhoto() {
+            // Remove preview image
+            const preview = document.getElementById('capturedPreview');
+            if (preview) {
+                preview.remove();
+            }
+
+            // Show video again
+            const video = document.getElementById('camera');
+            video.style.display = 'block';
+
+            // Reset buttons
+            const captureBtn = document.getElementById('captureBtn');
+            captureBtn.innerHTML = '<i class="fas fa-camera me-1"></i>Ambil Foto';
+            captureBtn.onclick = capturePhoto;
+
+            // Clear file input
+            document.getElementById('face_image').value = '';
+            capturedImageBlob = null;
+        }
+
+        // Handle manual file upload
+        document.getElementById('face_image').addEventListener('change', function (e) {
+            if (e.target.files.length > 0) {
+                // Hide camera if active
+                if (camera) {
+                    camera.getTracks().forEach(track => track.stop());
+                    camera = null;
+                    document.getElementById('camera').style.display = 'none';
+                    document.getElementById('camera-placeholder').style.display = 'flex';
+                }
+
+                // Reset capture button
+                const captureBtn = document.getElementById('captureBtn');
+                captureBtn.innerHTML = '<i class="fas fa-camera me-1"></i>Ambil Foto';
+                captureBtn.onclick = capturePhoto;
+                captureBtn.disabled = true;
+            }
+        });
+
+        // Stop camera when page unloads
+        window.addEventListener('beforeunload', function () {
+            if (camera) {
+                camera.getTracks().forEach(track => track.stop());
             }
         });
     </script>
