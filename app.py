@@ -15,14 +15,16 @@ import tempfile
 
 
 # Face recognition imports (optional)
+FACE_RECOGNITION_AVAILABLE = False
 try:
     import cv2
     import face_recognition
     FACE_RECOGNITION_AVAILABLE = True
+    print("Face recognition libraries loaded successfully")
 except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
-    print("Warning: Face recognition libraries not installed. Install with:")
-    print("pip install opencv-python face_recognition")
+    print("Warning: Face recognition libraries not available in this environment")
+    print("App will run without face recognition features")
 
 # Import custom modules
 from register_web import init_web_registration
@@ -2156,4 +2158,5 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
