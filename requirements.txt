@@ -1,24 +1,9 @@
-# Core Flask dependencies
 Flask==2.3.3
 Werkzeug==2.3.7
 gunicorn==21.2.0
 python-dotenv==1.0.0
-
-# Data processing
 pandas==2.0.3
 numpy==1.24.3
 openpyxl==3.1.2
-
-# Image processing - Railway compatible versions
 Pillow==10.0.0
-
-# Face recognition dependencies - specific versions for Railway
-# Note: These might need system packages
 opencv-python-headless==4.8.1.78
-dlib==19.24.2
-face-recognition==1.3.0
-cmake==3.27.7
-
-# Alternative: If above fails, use these lighter versions
-# opencv-python-headless==4.5.5.64
-# face-recognition==1.2.3
