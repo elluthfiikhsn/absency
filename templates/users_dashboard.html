@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Pengguna - Sistem Absensi</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #ffffff;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: none;
+            z-index: 4000 !important;
+            position: relative;
+        }
+
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .attendance-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .user-card {
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            border-left-color: #764ba2;
+            transform: translateY(-3px);
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .attendance-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 15px;
+        }
+
+        .search-box {
+            border-radius: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .search-box:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .search-box::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .input-group-text {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-right: none;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 25px 0 0 25px;
+        }
+
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .online-indicator {
+            width: 12px;
+            height: 12px;
+            background: #28a745;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+            }
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .modal-header .btn-close {
+            filter: invert(1);
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-nav .btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .attendance-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .attendance-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .attendance-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .time-badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-group .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-group .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838 0%, #1c9f8a 100%);
+            transform: translateY(-1px);
+        }
+
+        .dropdown-menu {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            z-index: 3000 !important;
+        }
+
+        .dropdown-item {
+            color: #333;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            transform: translateY(-1px);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            font-weight: 600;
+        }
+
+        .alert {
+            border-radius: 15px;
+            border: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.2) 0%, rgba(56, 239, 125, 0.2) 100%);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            color: #28a745;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2) 0%, rgba(245, 87, 108, 0.2) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .card-header {
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0 !important;
+            color: white;
+        }
+
+        .card-footer {
+            background: rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0 0 20px 20px !important;
+        }
+
+        .text-muted {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .attendance-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .attendance-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .attendance-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        .attendance-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Export loading overlay styles */
+        .export-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .export-loading-content {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            animation: fadeInScale 0.3s ease-out;
+        }
+
+        @keyframes fadeInScale {
+            0% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div>Memuat data pengguna...</div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-user-clock me-2"></i>Absensi
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('absensi') }}">
+                            <i class="fas fa-clock me-1"></i>Absensi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('profil') }}">
+                            <i class="fas fa-user me-1"></i>Profil
+                        </a>
+                    </li>
+
+                    {% if session.get('username') == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('set_coordinat') }}">
+                            <i class="fas fa-map-marker-alt me-1"></i>Koordinat
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users_dashboard') }}">
+                            <i class="fas fa-users me-1"></i>Daftar Pengguna
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
+                            data-bs-toggle="dropdown" data-bs-display="static">
+                            <i class="fas fa-user-circle me-1"></i>
+                            {{ session.full_name or session.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('profil') }}">
+                                    <i class="fas fa-user me-2"></i>Profil
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card header-card">
+                    <div class="card-body text-center py-4">
+                        <h2 class="mb-2">
+                            <i class="fas fa-users me-2"></i>
+                            Manajemen Pengguna
+                        </h2>
+                        <p class="mb-0 opacity-75">Kelola semua pengguna dalam sistem absensi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics and Daily Attendance -->
+        <div class="row mb-4">
+            <!-- Total Users Card -->
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card stats-card text-center">
+                    <div class="card-body py-4">
+                        <i class="fas fa-users fa-2x mb-3 opacity-75"></i>
+                        <h3 id="totalUsers">0</h3>
+                        <p class="mb-0">Total Pengguna</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Attendance Card -->
+            <div class="col-lg-8 col-md-6 mb-3">
+                <div class="card attendance-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-check me-2"></i>Kehadiran Harian
+                        </h5>
+                        <div class="date-nav">
+                            <button class="btn btn-sm btn-outline-light" id="prevDate" title="Hari Sebelumnya">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <span id="currentDateDisplay" class="mx-3 fw-bold"></span>
+                            <button class="btn btn-sm btn-outline-light" id="nextDate" title="Hari Berikutnya">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" id="todayBtn" title="Hari Ini">
+                                <i class="fas fa-calendar-day"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="attendance-list" id="dailyAttendanceList">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-white-50" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div class="mt-2 opacity-75">Memuat data kehadiran...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search and Controls -->
+        <div class="row mb-4">
+            <div class="col-lg-6">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control search-box border-start-0" id="searchInput"
+                        placeholder="Cari berdasarkan nama atau username...">
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="btn-group w-100">
+                    <button class="btn btn-outline-primary" onclick="filterUsers('all')" id="filterAll">
+                        <i class="fas fa-users me-1"></i>Semua
+                    </button>
+                    <button class="btn btn-outline-success" onclick="filterUsers('active')" id="filterActive">
+                        <i class="fas fa-user-check me-1"></i>Aktif
+                    </button>
+                    <button class="btn btn-outline-info" onclick="filterUsers('face')" id="filterFace">
+                        <i class="fas fa-face-smile me-1"></i>Face
+                    </button>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="btn-group w-100">
+                    <button class="btn btn-success" onclick="showAddUserModal()">
+                        <i class="fas fa-plus me-1"></i>Tambah
+                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown"
+                            title="Export Data">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="exportUsers()">
+                                    <i class="fas fa-users me-2"></i>Data Pengguna
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="exportDailyAttendance()">
+                                    <i class="fas fa-calendar-day me-2"></i>Kehadiran Hari Ini
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="showDatePickerModal()">
+                                    <i class="fas fa-calendar me-2"></i>Kehadiran Harian
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="showMonthPickerModal()">
+                                    <i class="fas fa-calendar-alt me-2"></i>Laporan Bulanan
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Grid -->
+        <div class="row" id="usersContainer">
+            <!-- Users akan dimuat dengan JavaScript -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5" style="display: none;">
+            <div class="card">
+                <div class="card-body py-5">
+                    <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">Tidak Ada Pengguna</h5>
+                    <p class="text-muted">Tidak ditemukan pengguna yang sesuai dengan kriteria pencarian</p>
+                    <button class="btn btn-outline-primary" onclick="resetFilters()">
+                        <i class="fas fa-refresh me-1"></i>Reset Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit User Modal -->
+    <div class="modal fade" id="userModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalTitle">
+                        <i class="fas fa-user-plus me-2"></i>Tambah Pengguna
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="userForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="userId" name="user_id">
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            <div class="form-text">Username harus unik dan tidak dapat diubah setelah dibuat</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fullName" class="form-label">Nama Lengkap</label>
+                            <input type="text" class="form-control" id="fullName" name="full_name" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password">
+                            <div class="form-text" id="passwordHelp">Minimal 6 karakter</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="role" class="form-label">Role</label>
+                                    <select class="form-select" id="role" name="role">
+                                        <option value="user">User</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="active" class="form-label">Status</label>
+                                    <select class="form-select" id="active" name="active">
+                                        <option value="1">Aktif</option>
+                                        <option value="0">Nonaktif</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Simpan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Detail Modal -->
+    <div class="modal fade" id="userDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user me-2"></i>Detail Pengguna
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="userDetailContent">
+                    <!-- Content akan dimuat dengan JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-trash me-2"></i>Konfirmasi Hapus
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle fa-4x text-danger mb-3"></i>
+                        <h5>Apakah Anda yakin?</h5>
+                        <p class="text-muted">Data pengguna <strong id="deleteUserName"></strong> akan dihapus permanen
+                            dan tidak dapat dikembalikan.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                        <i class="fas fa-trash me-2"></i>Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Picker Modal for Daily Export -->
+    <div class="modal fade" id="datePickerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-calendar me-2"></i>Export Kehadiran Harian
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="exportDate" class="form-label">Pilih Tanggal:</label>
+                        <input type="date" class="form-control" id="exportDate" max="">
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        File Excel akan berisi data kehadiran semua pengguna untuk tanggal yang dipilih.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary" onclick="exportSelectedDate()">
+                        <i class="fas fa-download me-2"></i>Export Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month Picker Modal for Monthly Report -->
+    <div class="modal fade" id="monthPickerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-calendar-alt me-2"></i>Export Laporan Bulanan
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="exportMonth" class="form-label">Bulan:</label>
+                                <select class="form-select" id="exportMonth">
+                                    <option value="1">Januari</option>
+                                    <option value="2">Februari</option>
+                                    <option value="3">Maret</option>
+                                    <option value="4">April</option>
+                                    <option value="5">Mei</option>
+                                    <option value="6">Juni</option>
+                                    <option value="7">Juli</option>
+                                    <option value="8">Agustus</option>
+                                    <option value="9">September</option>
+                                    <option value="10">Oktober</option>
+                                    <option value="11">November</option>
+                                    <option value="12">Desember</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="exportYear" class="form-label">Tahun:</label>
+                                <select class="form-select" id="exportYear">
+                                    <!-- Will be populated by JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        File Excel akan berisi laporan kehadiran bulanan semua pengguna dengan ringkasan statistik.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary" onclick="exportSelectedMonth()">
+                        <i class="fas fa-download me-2"></i>Export Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allUsers = [];
+        let filteredUsers = [];
+        let currentFilter = 'all';
+        let userToDelete = null;
+        let currentDate = new Date();
+
+        // Format date for display
+        function formatDateDisplay(date) {
+            return date.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Format date for API
+        function formatDateApi(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        // Update date display
+        function updateDateDisplay() {
+            document.getElementById('currentDateDisplay').textContent = formatDateDisplay(currentDate);
+            loadDailyAttendance();
+        }
+
+        // Load daily attendance
+        async function loadDailyAttendance() {
+            try {
+                const dateStr = formatDateApi(currentDate);
+                const response = await fetch(`/api/attendance/daily?date=${dateStr}`);
+                const data = await response.json();
+
+                const container = document.getElementById('dailyAttendanceList');
+
+                if (data.success && data.attendance && data.attendance.length > 0) {
+                    container.innerHTML = data.attendance.map(att => {
+                        const initials = att.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                        const timeIn = att.time_in ? att.time_in.substring(0, 5) : '-';
+                        const timeOut = att.time_out ? att.time_out.substring(0, 5) : '-';
+
+                        return `
+                            <div class="attendance-item d-flex align-items-center">
+                                <div class="attendance-avatar me-3">${initials}</div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold">${escapeHtml(att.full_name)}</div>
+                                    <div class="small opacity-75">@${escapeHtml(att.username)}</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="time-badge me-1">
+                                        <i class="fas fa-sign-in-alt me-1"></i>${timeIn}
+                                    </div>
+                                    ${att.time_out ?
+                                `<div class="time-badge">
+                                            <i class="fas fa-sign-out-alt me-1"></i>${timeOut}
+                                        </div>` :
+                                '<div class="time-badge"><i class="fas fa-clock me-1"></i>Belum keluar</div>'
+                            }
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-calendar-times fa-2x opacity-50 mb-2"></i>
+                            <div class="opacity-75">Tidak ada kehadiran pada tanggal ini</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('dailyAttendanceList').innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                        <div>Error loading attendance data</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Date navigation
+        document.getElementById('prevDate').addEventListener('click', () => {
+            currentDate.setDate(currentDate.getDate() - 1);
+            updateDateDisplay();
+        });
+
+        document.getElementById('nextDate').addEventListener('click', () => {
+            const today = new Date();
+            if (currentDate < today) {
+                currentDate.setDate(currentDate.getDate() + 1);
+                updateDateDisplay();
+            }
+        });
+
+        document.getElementById('todayBtn').addEventListener('click', () => {
+            currentDate = new Date();
+            updateDateDisplay();
+        });
+
+        // Load users data
+        async function loadUsers() {
+            try {
+                showLoading(true);
+                const response = await fetch('/api/users/list');
+                const data = await response.json();
+
+                if (data.success) {
+                    allUsers = data.users;
+                    filteredUsers = [...allUsers];
+                    updateStatistics(data.stats);
+                    renderUsers();
+                } else {
+                    showError('Error loading users: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error loading users: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Update statistics
+        function updateStatistics(stats) {
+            document.getElementById('totalUsers').textContent = stats.total_users || 0;
+        }
+
+        // Render users
+        function renderUsers() {
+            const container = document.getElementById('usersContainer');
+            const emptyState = document.getElementById('emptyState');
+
+            if (filteredUsers.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            container.innerHTML = filteredUsers.map(user => {
+                const initials = user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+                const statusBadge = user.active ?
+                    '<span class="status-badge badge bg-success"><i class="fas fa-check me-1"></i>Aktif</span>' :
+                    '<span class="status-badge badge bg-secondary"><i class="fas fa-times me-1"></i>Nonaktif</span>';
+
+                const faceBadge = user.face_recognition ?
+                    '<i class="fas fa-face-smile text-success me-2" title="Face Recognition Aktif"></i>' :
+                    '<i class="fas fa-face-meh text-muted me-2" title="Face Recognition Nonaktif"></i>';
+
+                const roleBadge = user.role === 'admin' ?
+                    '<span class="badge bg-warning text-dark ms-2"><i class="fas fa-crown me-1"></i>Admin</span>' : '';
+
+                const lastSeen = user.last_attendance ?
+                    `Terakhir hadir: ${formatDate(user.last_attendance)}` :
+                    'Belum pernah absen';
+
+                return `
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card user-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-start mb-3">
+                                    <div class="user-avatar me-3">${initials}</div>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            ${escapeHtml(user.full_name)}
+                                            ${roleBadge}
+                                            ${user.active ? '<span class="online-indicator" title="Pengguna Aktif"></span>' : ''}
+                                        </h6>
+                                        <small class="text-muted">@${escapeHtml(user.username)}</small>
+                                        ${user.email ? `<br><small class="text-muted"><i class="fas fa-envelope me-1"></i>${escapeHtml(user.email)}</small>` : ''}
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    ${statusBadge}
+                                    ${faceBadge}
+                                </div>
+                                
+                                <hr class="my-2">
+                                
+                                <div class="row text-center mb-3">
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Terdaftar</small>
+                                        <strong>${formatDate(user.created_at)}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Status</small>
+                                        <strong class="text-${user.active ? 'success' : 'muted'}">${user.active ? 'Online' : 'Offline'}</strong>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>${lastSeen}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-0">
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showUserDetail(${user.id})" title="Lihat Detail">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="editUser(${user.id})" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${user.id})" title="Hapus">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Show add user modal
+        function showAddUserModal() {
+            document.getElementById('userModalTitle').innerHTML = '<i class="fas fa-user-plus me-2"></i>Tambah Pengguna';
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('username').disabled = false;
+            document.getElementById('passwordHelp').textContent = 'Minimal 6 karakter';
+            document.getElementById('password').required = true;
+            new bootstrap.Modal(document.getElementById('userModal')).show();
+        }
+
+        // Edit user
+        function editUser(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+
+            document.getElementById('userModalTitle').innerHTML = '<i class="fas fa-user-edit me-2"></i>Edit Pengguna';
+            document.getElementById('userId').value = user.id;
+            document.getElementById('username').value = user.username;
+            document.getElementById('username').disabled = true;
+            document.getElementById('fullName').value = user.full_name;
+            document.getElementById('email').value = user.email || '';
+            document.getElementById('role').value = user.role;
+            document.getElementById('active').value = user.active ? '1' : '0';
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = false;
+            document.getElementById('passwordHelp').textContent = 'Kosongkan jika tidak ingin mengubah password';
+
+            new bootstrap.Modal(document.getElementById('userModal')).show();
+        }
+
+        // Handle user form submission
+        document.getElementById('userForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const userId = formData.get('user_id');
+            const isEdit = userId !== '';
+
+            const userData = {
+                username: formData.get('username'),
+                full_name: formData.get('full_name'),
+                email: formData.get('email'),
+                role: formData.get('role'),
+                active: formData.get('active') === '1'
+            };
+
+            if (formData.get('password')) {
+                userData.password = formData.get('password');
+            }
+
+            try {
+                const url = isEdit ? `/api/users/update/${userId}` : '/api/users/create';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess(result.message);
+                    bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+                    loadUsers(); // Reload users
+                } else {
+                    showError(result.message || 'Gagal menyimpan data pengguna');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        });
+
+        // Show delete modal
+        function showDeleteModal(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+
+            userToDelete = userId;
+            document.getElementById('deleteUserName').textContent = user.full_name;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // Confirm delete
+        async function confirmDelete() {
+            if (!userToDelete) return;
+
+            try {
+                const response = await fetch(`/api/users/delete/${userToDelete}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess(result.message);
+                    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    loadUsers(); // Reload users
+                } else {
+                    showError(result.message || 'Gagal menghapus pengguna');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+
+            userToDelete = null;
+        }
+
+        // Filter users
+        function filterUsers(type) {
+            currentFilter = type;
+
+            // Update button states
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('btn-primary', 'btn-outline-primary', 'btn-success', 'btn-outline-success', 'btn-info', 'btn-outline-info');
+            });
+
+            switch (type) {
+                case 'all':
+                    filteredUsers = [...allUsers];
+                    document.getElementById('filterAll').className = 'btn btn-primary';
+                    document.getElementById('filterActive').className = 'btn btn-outline-success';
+                    document.getElementById('filterFace').className = 'btn btn-outline-info';
+                    break;
+                case 'active':
+                    filteredUsers = allUsers.filter(user => user.active);
+                    document.getElementById('filterAll').className = 'btn btn-outline-primary';
+                    document.getElementById('filterActive').className = 'btn btn-success';
+                    document.getElementById('filterFace').className = 'btn btn-outline-info';
+                    break;
+                case 'face':
+                    filteredUsers = allUsers.filter(user => user.face_recognition);
+                    document.getElementById('filterAll').className = 'btn btn-outline-primary';
+                    document.getElementById('filterActive').className = 'btn btn-outline-success';
+                    document.getElementById('filterFace').className = 'btn btn-info';
+                    break;
+            }
+
+            // Apply search if there's a search term
+            const searchTerm = document.getElementById('searchInput').value;
+            if (searchTerm) {
+                applySearch(searchTerm);
+            } else {
+                renderUsers();
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function () {
+            const searchTerm = this.value.toLowerCase().trim();
+            applySearch(searchTerm);
+        });
+
+        function applySearch(searchTerm) {
+            if (searchTerm === '') {
+                // If no search term, show filtered users based on current filter
+                filterUsers(currentFilter);
+                return;
+            }
+
+            // Apply search to current filtered users
+            const baseUsers = getCurrentFilteredUsers();
+            filteredUsers = baseUsers.filter(user =>
+                user.full_name.toLowerCase().includes(searchTerm) ||
+                user.username.toLowerCase().includes(searchTerm) ||
+                (user.email && user.email.toLowerCase().includes(searchTerm))
+            );
+
+            renderUsers();
+        }
+
+        function getCurrentFilteredUsers() {
+            switch (currentFilter) {
+                case 'active':
+                    return allUsers.filter(user => user.active);
+                case 'face':
+                    return allUsers.filter(user => user.face_recognition);
+                default:
+                    return [...allUsers];
+            }
+        }
+
+        // Show user detail
+        async function showUserDetail(userId) {
+            try {
+                const user = allUsers.find(u => u.id === userId);
+                if (!user) return;
+
+                // Buat konten detail user
+                const content = `
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="user-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 1.8rem;">
+                                ${user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <h5>${escapeHtml(user.full_name)}</h5>
+                            <p class="text-muted">@${escapeHtml(user.username)}</p>
+                            ${user.role === 'admin' ? '<span class="badge bg-warning text-dark"><i class="fas fa-crown me-1"></i>Administrator</span>' : '<span class="badge bg-primary"><i class="fas fa-user me-1"></i>Pengguna</span>'}
+                        </div>
+                        <div class="col-md-8">
+                            <h6><i class="fas fa-info-circle me-2"></i>Informasi Dasar</h6>
+                            <table class="table table-borderless table-sm">
+                                <tr><td><strong>Email:</strong></td><td>${user.email || '-'}</td></tr>
+                                <tr><td><strong>Status:</strong></td><td>${user.active ? '<span class="badge bg-success">Aktif</span>' : '<span class="badge bg-secondary">Nonaktif</span>'}</td></tr>
+                                <tr><td><strong>Face Recognition:</strong></td><td>${user.face_recognition ? '<span class="badge bg-success">Aktif</span>' : '<span class="badge bg-secondary">Nonaktif</span>'}</td></tr>
+                                <tr><td><strong>Terdaftar:</strong></td><td>${formatDate(user.created_at)}</td></tr>
+                                <tr><td><strong>Terakhir Update:</strong></td><td>${formatDate(user.updated_at)}</td></tr>
+                                <tr><td><strong>Terakhir Hadir:</strong></td><td>${user.last_attendance ? formatDate(user.last_attendance) : 'Belum pernah'}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="text-center">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Untuk mengedit data pengguna, gunakan tombol edit pada card pengguna.
+                        </small>
+                    </div>
+                `;
+
+                document.getElementById('userDetailContent').innerHTML = content;
+                new bootstrap.Modal(document.getElementById('userDetailModal')).show();
+
+            } catch (error) {
+                showError('Error loading user detail: ' + error.message);
+            }
+        }
+
+        // Reset filters
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            filterUsers('all');
+        }
+
+        // Initialize export modals
+        function initializeExportModals() {
+            // Set today's date as default for date picker
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('exportDate').value = today;
+            document.getElementById('exportDate').max = today;
+
+            // Populate year dropdown
+            const currentYear = new Date().getFullYear();
+            const yearSelect = document.getElementById('exportYear');
+            for (let year = currentYear; year >= currentYear - 5; year--) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (year === currentYear) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+
+            // Set current month as default
+            const currentMonth = new Date().getMonth() + 1;
+            document.getElementById('exportMonth').value = currentMonth;
+        }
+
+        // Export functions
+        function exportUsers() {
+            showExportLoading('Mengexport data pengguna...');
+
+            // Create a temporary anchor element to trigger download
+            const link = document.createElement('a');
+            link.href = '/api/export/users';
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => {
+                hideExportLoading();
+                showSuccess('Data pengguna berhasil diexport ke Excel!');
+            }, 1000);
+        }
+
+        function exportDailyAttendance() {
+            const today = new Date().toISOString().split('T')[0];
+            exportAttendanceByDate(today);
+        }
+
+        function showDatePickerModal() {
+            new bootstrap.Modal(document.getElementById('datePickerModal')).show();
+        }
+
+        function showMonthPickerModal() {
+            new bootstrap.Modal(document.getElementById('monthPickerModal')).show();
+        }
+
+        function exportSelectedDate() {
+            const selectedDate = document.getElementById('exportDate').value;
+            if (!selectedDate) {
+                showError('Silakan pilih tanggal terlebih dahulu');
+                return;
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('datePickerModal')).hide();
+            exportAttendanceByDate(selectedDate);
+        }
+
+        function exportSelectedMonth() {
+            const selectedMonth = document.getElementById('exportMonth').value;
+            const selectedYear = document.getElementById('exportYear').value;
+
+            if (!selectedMonth || !selectedYear) {
+                showError('Silakan pilih bulan dan tahun terlebih dahulu');
+                return;
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('monthPickerModal')).hide();
+            exportMonthlyReport(selectedMonth, selectedYear);
+        }
+
+        function exportAttendanceByDate(date) {
+            showExportLoading('Mengexport data kehadiran harian...');
+
+            const link = document.createElement('a');
+            link.href = `/api/export/attendance/daily?date=${date}`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => {
+                hideExportLoading();
+                const formattedDate = new Date(date).toLocaleDateString('id-ID');
+                showSuccess(`Data kehadiran tanggal ${formattedDate} berhasil diexport ke Excel!`);
+            }, 1000);
+        }
+
+        function exportMonthlyReport(month, year) {
+            showExportLoading('Mengexport laporan bulanan...');
+
+            const link = document.createElement('a');
+            link.href = `/api/export/attendance/monthly?month=${month}&year=${year}`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => {
+                hideExportLoading();
+                const monthNames = [
+                    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+                ];
+                showSuccess(`Laporan bulanan ${monthNames[month - 1]} ${year} berhasil diexport ke Excel!`);
+            }, 1000);
+        }
+
+        function showExportLoading(message) {
+            const loadingHtml = `
+                <div class="export-loading-overlay" id="exportLoadingOverlay">
+                    <div class="export-loading-content">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="text-primary fw-bold">${message}</div>
+                            <div class="text-muted mt-2">Mohon tunggu...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', loadingHtml);
+        }
+
+        function hideExportLoading() {
+            const overlay = document.getElementById('exportLoadingOverlay');
+            if (overlay) {
+                overlay.remove();
+            }
+        }
+
+        // Utility functions
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-check-circle me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function (m) { return map[m]; });
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('id-ID', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            updateDateDisplay();
+            loadUsers();
+            initializeExportModals();   
+        });
+    </script>
+</body>
+
+</html>

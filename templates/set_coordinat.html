@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Koordinat - Sistem Absensi</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #ffffff;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: none;
+            z-index: 4000 !important;
+            position: relative;
+        }
+
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .current-location {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .form-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
+        .btn-custom {
+            border-radius: 15px;
+            padding: 12px 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            border: none;
+        }
+
+        .btn-light {
+            background: rgba(255, 255, 255, 0.9);
+            color: #2a5298;
+            border: none;
+        }
+
+        .btn-light:hover {
+            background: rgba(255, 255, 255, 1);
+            color: #1e3c72;
+        }
+
+        .table-responsive {
+            border-radius: 20px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .table {
+            margin-bottom: 0;
+            color: white;
+        }
+
+        .table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+            padding: 15px;
+        }
+
+        .table td {
+            vertical-align: middle;
+            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.875rem;
+            border-radius: 10px;
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+            color: white;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .modal-header.bg-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        }
+
+        .modal-header.bg-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+        }
+
+        .modal-body {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0 0 20px 20px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(30, 60, 114, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .fade-out {
+            opacity: 0.3;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .card-header {
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0 !important;
+            color: white;
+            font-weight: 600;
+        }
+
+        .badge {
+            border-radius: 15px;
+            padding: 8px 15px;
+            font-size: 0.85rem;
+        }
+
+        .alert {
+            border-radius: 15px;
+            border: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.2) 0%, rgba(56, 239, 125, 0.2) 100%);
+            border: 1px solid rgba(17, 153, 142, 0.3);
+            color: #11998e;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2) 0%, rgba(245, 87, 108, 0.2) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            color: #667eea;
+        }
+
+        .dropdown-menu {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            z-index: 3000 !important;
+        }
+
+        .dropdown-item {
+            color: #333;
+            border-radius: 10px;
+            margin: 5px;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            transition: all 0.3s ease;
+            border-radius: 10px;
+            margin: 0 5px;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Map Styles */
+        #map {
+            height: 500px;
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+        }
+
+        .leaflet-container {
+            border-radius: 20px;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(42, 82, 152, 0.95);
+            backdrop-filter: blur(10px);
+            color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(42, 82, 152, 0.95);
+        }
+
+        .leaflet-popup-content {
+            color: white;
+        }
+
+        .leaflet-popup h6 {
+            color: #38ef7d;
+            margin-bottom: 5px;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            min-width: 200px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: inline-block;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .coordinate-counter {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 15px;
+            padding: 8px 15px;
+        }
+
+        /* Custom marker styles */
+        .custom-marker {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .custom-marker.inactive {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        }
+
+        .current-location-marker {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner-border text-light mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5>Memproses...</h5>
+            <p class="text-white-50 mb-0">Mohon tunggu sebentar</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-user-clock me-2"></i>
+                Sistem Absensi
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('absensi') }}">
+                            <i class="fas fa-clock me-1"></i>Absensi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('profil') }}">
+                            <i class="fas fa-user me-1"></i>Profil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('set_coordinat') }}">
+                            <i class="fas fa-map-marker-alt me-1"></i>Koordinat
+                        </a>
+                    </li>
+                    {% if session.get('username') == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users_dashboard') }}">
+                            <i class="fas fa-users me-1"></i>Daftar Pengguna
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
+                            data-bs-toggle="dropdown" data-bs-display="static">
+                            <i class="fas fa-user-circle me-1"></i>{{ session.full_name or session.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('profil') }}"><i
+                                        class="fas fa-user me-2"></i>Profil</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i
+                                        class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show"
+            role="alert">
+            <i
+                class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card header-card">
+                    <div class="card-body text-center py-4">
+                        <h2 class="mb-2">
+                            <i class="fas fa-map-marker-alt me-2"></i>
+                            Pengaturan Koordinat
+                        </h2>
+                        <p class="mb-0 opacity-75">Kelola lokasi yang diizinkan untuk absensi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Location -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card current-location">
+                    <div class="card-body">
+                        <h5 class="mb-3">
+                            <i class="fas fa-crosshairs me-2"></i>
+                            Lokasi Anda Saat Ini
+                        </h5>
+                        <div id="current-location-info">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span>Mendapatkan lokasi...</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-light btn-custom" onclick="useCurrentLocation()">
+                                <i class="fas fa-plus me-2"></i>Gunakan Lokasi Ini
+                            </button>
+                            <button class="btn btn-outline-light btn-custom" onclick="showCurrentLocationOnMap()">
+                                <i class="fas fa-eye me-2"></i>Lihat di Peta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add New Coordinate Form -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-plus-circle me-2"></i>
+                            Tambah Koordinat Baru
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('add_coordinate') }}" id="addCoordinateForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="name" class="form-label">
+                                        <i class="fas fa-tag me-1"></i>Nama Lokasi
+                                    </label>
+                                    <input type="text" class="form-control" id="name" name="name"
+                                        placeholder="Contoh: Kantor Pusat Jakarta" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="radius" class="form-label">
+                                        <i class="fas fa-circle me-1"></i>Radius (meter)
+                                    </label>
+                                    <input type="number" class="form-control" id="radius" name="radius" value="100"
+                                        min="10" max="1000" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="latitude" class="form-label">
+                                        <i class="fas fa-compass me-1"></i>Latitude
+                                    </label>
+                                    <input type="number" class="form-control" id="latitude" name="latitude" step="any"
+                                        placeholder="-6.123456" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="longitude" class="form-label">
+                                        <i class="fas fa-compass me-1"></i>Longitude
+                                    </label>
+                                    <input type="number" class="form-control" id="longitude" name="longitude" step="any"
+                                        placeholder="106.123456" required>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <button type="button" class="btn btn-outline-light btn-custom me-2"
+                                    onclick="clearForm()">
+                                    <i class="fas fa-eraser me-1"></i>Bersihkan
+                                </button>
+                                <button type="submit" class="btn btn-success btn-custom">
+                                    <i class="fas fa-plus me-1"></i>Tambah Koordinat
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-map me-2"></i>
+                            Peta Koordinat
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-light" onclick="refreshMap()">
+                                <i class="fas fa-refresh me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="fitAllMarkers()">
+                                <i class="fas fa-expand-arrows-alt me-1"></i>Fit All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-3" style="position: relative;">
+                        <div id="map"></div>
+
+                        <!-- Map Controls -->
+                        <div class="map-controls">
+                            <div class="d-flex flex-column gap-2">
+                                <button class="btn btn-sm btn-light" onclick="addMarkerMode()" id="addMarkerBtn">
+                                    <i class="fas fa-plus me-1"></i>Add Point
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" onclick="clearSelection()">
+                                    <i class="fas fa-times me-1"></i>Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Map Legend -->
+                        <div class="map-legend">
+                            <h6 class="mb-3"><i class="fas fa-info-circle me-2"></i>Legend</h6>
+                            <div class="legend-item">
+                                <div class="legend-icon"
+                                    style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);"></div>
+                                <span>Active Location</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon"
+                                    style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);"></div>
+                                <span>Inactive Location</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-icon current-location-marker"></div>
+                                <span>Current Location</span>
+                            </div>
+                            <div class="mt-3 text-sm">
+                                <small><i class="fas fa-mouse-pointer me-1"></i>Click map to add new point</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daftar Koordinat -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Daftar Koordinat
+                        </h5>
+                        <span class="badge coordinate-counter" id="coordinate-counter">{{ coordinates|length }}
+                            lokasi</span>
+                    </div>
+                    <div class="card-body table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nama Lokasi</th>
+                                    <th>Latitude</th>
+                                    <th>Longitude</th>
+                                    <th>Radius (m)</th>
+                                    <th>Status</th>
+                                    <th width="200">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coordinates-table-body">
+                                {% for c in coordinates %}
+                                <tr id="row-{{ c['id'] }}">
+                                    <td><strong>{{ c['name'] }}</strong></td>
+                                    <td class="text-white-50">{{ c['latitude'] }}</td>
+                                    <td class="text-white-50">{{ c['longitude'] }}</td>
+                                    <td><span class="badge bg-info">{{ c['radius'] }}m</span></td>
+                                    <td>
+                                        {% if c['active'] %}
+                                        <span class="badge bg-success">Aktif</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Nonaktif</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn btn-sm btn-outline-info"
+                                                onclick="focusOnMap({{ c['id'] }})" title="Lihat di Peta">
+                                                <i class="fas fa-map-marker-alt"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                onclick="editCoordinate({{ c['id'] }}, '{{ c['name'] }}', {{ c['latitude'] }}, {{ c['longitude'] }}, {{ c['radius'] }})"
+                                                title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button
+                                                class="btn btn-sm btn-outline-{{ 'warning' if c['active'] else 'success' }}"
+                                                onclick="toggleStatus({{ c['id'] }}, {{ c['active']|lower }})"
+                                                title="{{ 'Nonaktifkan' if c['active'] else 'Aktifkan' }}">
+                                                <i class="fas fa-{{ 'pause' if c['active'] else 'play' }}"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                onclick="confirmDelete({{ c['id'] }}, '{{ c['name'] }}')" title="Hapus">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr id="empty-row">
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="empty-state">
+                                            <i class="fas fa-map-marker-alt fa-4x mb-3"></i>
+                                            <h5>Belum ada koordinat tersimpan</h5>
+                                            <p class="text-white-50">Tambahkan koordinat pertama untuk memulai</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Edit Koordinat
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-id">
+                        <div class="mb-3">
+                            <label for="edit-name" class="form-label">Nama Lokasi</label>
+                            <input type="text" class="form-control" id="edit-name" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-latitude" class="form-label">Latitude</label>
+                                <input type="number" class="form-control" id="edit-latitude" step="any" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-longitude" class="form-label">Longitude</label>
+                                <input type="number" class="form-control" id="edit-longitude" step="any" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-radius" class="form-label">Radius (meter)</label>
+                            <input type="number" class="form-control" id="edit-radius" min="10" max="1000" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                    <h5 class="modal-title text-white">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Konfirmasi Hapus
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center">
+                        <i class="fas fa-trash-alt fa-4x text-danger mb-3"></i>
+                        <h5>Hapus Koordinat?</h5>
+                        <p class="text-white-50 mb-3">Apakah Anda yakin ingin menghapus koordinat:</p>
+                        <div class="alert alert-warning">
+                            <strong id="delete-location-name"></strong>
+                        </div>
+                        <p class="text-danger small mb-0">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            Tindakan ini tidak dapat dibatalkan!
+                        </p>
+                    </div>
+                    <input type="hidden" id="delete-coordinate-id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Batal
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="deleteCoordinate()">
+                        <i class="fas fa-trash me-1"></i>Ya, Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Berhasil
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <h5 id="success-title">Operasi Berhasil</h5>
+                    <p id="success-message" class="text-white-50"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // Global variables
+        let map;
+        let currentLocationMarker;
+        let coordinateMarkers = [];
+        let addMarkerModeActive = false;
+        let currentLocation = null;
+
+        // Get coordinate data from Flask template
+        const coordinates = {{ coordinates | tojson }};
+
+        // Initialize map
+        function initMap() {
+            // Create map centered on Indonesia
+            map = L.map('map').setView([-2.5, 118], 5);
+
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add click event for adding markers
+            map.on('click', onMapClick);
+
+            // Load existing coordinates
+            loadCoordinateMarkers();
+        }
+
+        // Load coordinate markers on map
+        function loadCoordinateMarkers() {
+            // Clear existing markers
+            coordinateMarkers.forEach(marker => {
+                map.removeLayer(marker);
+                if (marker.circle) {
+                    map.removeLayer(marker.circle);
+                }
+            });
+            coordinateMarkers = [];
+
+            // Add markers for each coordinate
+            coordinates.forEach(coord => {
+                addCoordinateMarker(coord);
+            });
+
+            // Fit map to show all markers if there are any
+            if (coordinateMarkers.length > 0) {
+                fitAllMarkers();
+            }
+        }
+
+        // Add coordinate marker to map
+        function addCoordinateMarker(coord) {
+            // Create custom marker
+            const markerElement = document.createElement('div');
+            markerElement.className = `custom-marker ${coord.active ? '' : 'inactive'}`;
+            markerElement.innerHTML = '<i class="fas fa-map-marker-alt text-white"></i>';
+
+            const marker = L.marker([coord.latitude, coord.longitude], {
+                icon: L.divIcon({
+                    html: markerElement.outerHTML,
+                    className: 'custom-div-icon',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                })
+            }).addTo(map);
+
+            // Add circle to show radius
+            const circle = L.circle([coord.latitude, coord.longitude], {
+                color: coord.active ? '#11998e' : '#6c757d',
+                fillColor: coord.active ? '#38ef7d' : '#6c757d',
+                fillOpacity: 0.1,
+                radius: coord.radius
+            }).addTo(map);
+
+            // Create popup content
+            const popupContent = `
+                <div style="min-width: 200px;">
+                    <h6 style="color: #38ef7d; margin-bottom: 10px;">
+                        <i class="fas fa-map-marker-alt me-2"></i>${coord.name}
+                    </h6>
+                    <p style="margin-bottom: 5px;"><strong>Latitude:</strong> ${coord.latitude}</p>
+                    <p style="margin-bottom: 5px;"><strong>Longitude:</strong> ${coord.longitude}</p>
+                    <p style="margin-bottom: 10px;"><strong>Radius:</strong> ${coord.radius}m</p>
+                    <p style="margin-bottom: 15px;">
+                        <span class="badge ${coord.active ? 'bg-success' : 'bg-secondary'}">
+                            ${coord.active ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                    </p>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-primary" onclick="editCoordinate(${coord.id}, '${coord.name}', ${coord.latitude}, ${coord.longitude}, ${coord.radius})" style="border-radius: 8px;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-${coord.active ? 'warning' : 'success'}" 
+                                onclick="toggleStatus(${coord.id}, ${coord.active})" style="border-radius: 8px;">
+                            <i class="fas fa-${coord.active ? 'pause' : 'play'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDelete(${coord.id}, '${coord.name}')" style="border-radius: 8px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            marker.bindPopup(popupContent);
+
+            // Store reference
+            marker.coordinateId = coord.id;
+            marker.circle = circle;
+            coordinateMarkers.push(marker);
+
+            return marker;
+        }
+
+        // Handle map click for adding new markers
+        function onMapClick(e) {
+            if (addMarkerModeActive) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                // Fill form with clicked coordinates
+                document.getElementById('latitude').value = lat.toFixed(6);
+                document.getElementById('longitude').value = lng.toFixed(6);
+
+                // Focus on name field
+                document.getElementById('name').focus();
+
+                // Exit add marker mode
+                addMarkerMode();
+
+                // Show success message
+                showToast('Koordinat dipilih dari peta! Silakan lengkapi form.', 'info');
+            }
+        }
+
+        // Get current location
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showCurrentPosition, showLocationError, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                });
+            } else {
+                document.getElementById('current-location-info').innerHTML =
+                    '<div class="alert alert-danger mb-0">Browser tidak mendukung geolokasi</div>';
+            }
+        }
+
+        function showCurrentPosition(position) {
+            currentLocation = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            };
+
+            document.getElementById('current-location-info').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Latitude:</strong> ${position.coords.latitude.toFixed(6)}</p>
+                        <p class="mb-0"><strong>Longitude:</strong> ${position.coords.longitude.toFixed(6)}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Akurasi:</strong> ±${Math.round(position.coords.accuracy)}m</p>
+                        <p class="mb-0"><strong>Status:</strong> <span class="badge bg-success">Terdeteksi</span></p>
+                    </div>
+                </div>
+            `;
+
+            // Add current location marker to map
+            addCurrentLocationToMap();
+        }
+
+        function showLocationError(error) {
+            let errorMsg = '';
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = "Akses lokasi ditolak oleh pengguna.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = "Informasi lokasi tidak tersedia.";
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = "Timeout mendapatkan lokasi.";
+                    break;
+                default:
+                    errorMsg = "Error tidak diketahui.";
+                    break;
+            }
+            document.getElementById('current-location-info').innerHTML =
+                `<div class="alert alert-danger mb-0">${errorMsg}</div>`;
+        }
+
+        // Add current location to map
+        function addCurrentLocationToMap() {
+            if (!currentLocation) return;
+
+            // Remove existing current location marker
+            if (currentLocationMarker) {
+                map.removeLayer(currentLocationMarker);
+            }
+
+            // Create current location marker
+            const markerElement = document.createElement('div');
+            markerElement.className = 'current-location-marker';
+
+            currentLocationMarker = L.marker([currentLocation.latitude, currentLocation.longitude], {
+                icon: L.divIcon({
+                    html: markerElement.outerHTML,
+                    className: 'current-location-div-icon',
+                    iconSize: [25, 25],
+                    iconAnchor: [12.5, 12.5]
+                })
+            }).addTo(map);
+
+            // Add popup
+            currentLocationMarker.bindPopup(`
+                <div style="min-width: 200px;">
+                    <h6 style="color: #667eea; margin-bottom: 10px;">
+                        <i class="fas fa-crosshairs me-2"></i>Lokasi Anda
+                    </h6>
+                    <p style="margin-bottom: 5px;"><strong>Latitude:</strong> ${currentLocation.latitude.toFixed(6)}</p>
+                    <p style="margin-bottom: 5px;"><strong>Longitude:</strong> ${currentLocation.longitude.toFixed(6)}</p>
+                    <p style="margin-bottom: 10px;"><strong>Akurasi:</strong> ±${Math.round(currentLocation.accuracy)}m</p>
+                    <button class="btn btn-sm btn-success" onclick="useCurrentLocation()" style="border-radius: 8px;">
+                        <i class="fas fa-plus me-1"></i>Gunakan Lokasi
+                    </button>
+                </div>
+            `);
+        }
+
+        // Show current location on map
+        function showCurrentLocationOnMap() {
+            if (!currentLocation) {
+                showToast('Lokasi belum terdeteksi. Mohon tunggu sebentar.', 'warning');
+                return;
+            }
+
+            map.setView([currentLocation.latitude, currentLocation.longitude], 16);
+            if (currentLocationMarker) {
+                currentLocationMarker.openPopup();
+            }
+        }
+
+        // Use current location
+        function useCurrentLocation() {
+            if (!currentLocation) {
+                showToast('Lokasi belum terdeteksi. Mohon tunggu sebentar.', 'warning');
+                return;
+            }
+
+            document.getElementById('latitude').value = currentLocation.latitude.toFixed(6);
+            document.getElementById('longitude').value = currentLocation.longitude.toFixed(6);
+            document.getElementById('name').focus();
+
+            showToast('Lokasi saat ini berhasil digunakan!', 'success');
+        }
+
+        // Clear form
+        function clearForm() {
+            document.getElementById('name').value = '';
+            document.getElementById('latitude').value = '';
+            document.getElementById('longitude').value = '';
+            document.getElementById('radius').value = '100';
+        }
+
+        // Add marker mode toggle
+        function addMarkerMode() {
+            addMarkerModeActive = !addMarkerModeActive;
+            const btn = document.getElementById('addMarkerBtn');
+
+            if (addMarkerModeActive) {
+                btn.className = 'btn btn-sm btn-warning';
+                btn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel';
+                map.getContainer().style.cursor = 'crosshair';
+                showToast('Klik pada peta untuk memilih koordinat', 'info');
+            } else {
+                btn.className = 'btn btn-sm btn-light';
+                btn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Point';
+                map.getContainer().style.cursor = '';
+            }
+        }
+
+        // Clear selection
+        function clearSelection() {
+            clearForm();
+            if (addMarkerModeActive) {
+                addMarkerMode();
+            }
+        }
+
+        // Focus on specific coordinate on map
+        function focusOnMap(coordinateId) {
+            const coord = coordinates.find(c => c.id === coordinateId);
+            if (coord) {
+                map.setView([coord.latitude, coord.longitude], 16);
+
+                // Find and open popup
+                const marker = coordinateMarkers.find(m => m.coordinateId === coordinateId);
+                if (marker) {
+                    setTimeout(() => marker.openPopup(), 500);
+                }
+            }
+        }
+
+        // Fit all markers in view
+        function fitAllMarkers() {
+            if (coordinateMarkers.length === 0) return;
+
+            const group = new L.featureGroup(coordinateMarkers);
+            if (currentLocationMarker) {
+                group.addLayer(currentLocationMarker);
+            }
+
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+
+        // Refresh map
+        function refreshMap() {
+            loadCoordinateMarkers();
+            getCurrentLocation();
+            showToast('Peta berhasil di-refresh!', 'success');
+        }
+
+        // Edit coordinate
+        function editCoordinate(id, name, lat, lng, radius) {
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-latitude').value = lat;
+            document.getElementById('edit-longitude').value = lng;
+            document.getElementById('edit-radius').value = radius;
+
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        }
+
+        // Handle edit form submission
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('editForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                if (!validateEditForm()) {
+                    return;
+                }
+
+                showLoading();
+
+                const formData = new FormData();
+                formData.append('id', document.getElementById('edit-id').value);
+                formData.append('name', document.getElementById('edit-name').value);
+                formData.append('latitude', document.getElementById('edit-latitude').value);
+                formData.append('longitude', document.getElementById('edit-longitude').value);
+                formData.append('radius', document.getElementById('edit-radius').value);
+
+                fetch('/update_coordinate', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoading();
+                        bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+
+                        if (data.success) {
+                            showSuccess('Koordinat Diperbarui', data.message);
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            showError('Error', data.message || 'Gagal memperbarui koordinat');
+                        }
+                    })
+                    .catch(error => {
+                        hideLoading();
+                        bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+                        showError('Error', 'Gagal menghubungi server');
+                        console.error('Update error:', error);
+                    });
+            });
+        });
+
+        // Toggle status
+        function toggleStatus(id, currentStatus) {
+            const coord = coordinates.find(c => c.id === id);
+            if (!coord) return;
+
+            const action = currentStatus ? 'nonaktifkan' : 'aktifkan';
+            if (confirm(`Yakin ingin ${action} koordinat "${coord.name}"?`)) {
+                showLoading();
+
+                const formData = new FormData();
+                formData.append('id', id);
+
+                fetch('/toggle_coordinate_status', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoading();
+
+                        if (data.success) {
+                            showSuccess('Status Diperbarui', data.message);
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            showError('Error', data.message || 'Gagal mengubah status');
+                        }
+                    })
+                    .catch(error => {
+                        hideLoading();
+                        showError('Error', 'Gagal menghubungi server');
+                        console.error('Toggle status error:', error);
+                    });
+            }
+        }
+
+        // Confirm delete
+        function confirmDelete(id, name) {
+            document.getElementById('delete-coordinate-id').value = id;
+            document.getElementById('delete-location-name').textContent = name;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // Delete coordinate
+        // Perbaikan JavaScript untuk set_coordinat.html
+
+        // Delete coordinate function dengan handling yang lebih baik
+        function deleteCoordinate() {
+            const coordinateId = document.getElementById('delete-coordinate-id').value;
+            const locationName = document.getElementById('delete-location-name').textContent;
+
+            if (!coordinateId) {
+                showError('Error', 'ID koordinat tidak valid');
+                return;
+            }
+
+            console.log('🔍 Deleting coordinate ID:', coordinateId);
+            showLoading();
+
+            const formData = new FormData();
+            formData.append('id', coordinateId);
+
+            fetch('/delete_coordinate', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📥 Delete response:', data);
+                    hideLoading();
+
+                    // Close modal first
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+                    if (modal) modal.hide();
+
+                    if (data.success) {
+                        console.log('✅ Delete successful');
+                        showSuccess('Koordinat Dihapus', data.message);
+
+                        // Remove row from table immediately
+                        const row = document.getElementById(`row-${coordinateId}`);
+                        if (row) {
+                            row.style.transition = 'all 0.3s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateX(-100%)';
+                            setTimeout(() => {
+                                row.remove();
+                                updateCoordinateCounter();
+                                checkEmptyState();
+                            }, 300);
+                        }
+
+                        // Remove marker from map
+                        removeMarkerFromMap(coordinateId);
+
+                        // Force reload after 1.5 seconds to ensure data consistency
+                        setTimeout(() => {
+                            console.log('🔄 Force reloading page...');
+                            window.location.reload();
+                        }, 1500);
+
+                    } else {
+                        console.log('❌ Delete failed:', data.message);
+                        showError('Gagal Menghapus', data.message || 'Gagal menghapus koordinat');
+                    }
+                })
+                .catch(error => {
+                    console.error('💥 Delete error:', error);
+                    hideLoading();
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+                    if (modal) modal.hide();
+
+                    showError('Error', 'Gagal menghubungi server. Coba refresh halaman.');
+                });
+        }
+
+        // Function to remove marker from map
+        function removeMarkerFromMap(coordinateId) {
+            if (map) {
+                coordinateMarkers.forEach((marker, index) => {
+                    if (marker.coordinateId === parseInt(coordinateId)) {
+                        map.removeLayer(marker);
+                        if (marker.circle) {
+                            map.removeLayer(marker.circle);
+                        }
+                        coordinateMarkers.splice(index, 1);
+                    }
+                });
+            }
+        }
+
+        // Function to update coordinate counter
+        function updateCoordinateCounter() {
+            const tbody = document.getElementById('coordinates-table-body');
+            const rows = tbody.querySelectorAll('tr:not(#empty-row)');
+            const counter = document.getElementById('coordinate-counter');
+            if (counter) {
+                counter.textContent = `${rows.length} lokasi`;
+            }
+        }
+
+        // Function to check and show empty state
+        function checkEmptyState() {
+            const tbody = document.getElementById('coordinates-table-body');
+            const dataRows = tbody.querySelectorAll('tr:not(#empty-row)');
+            const emptyRow = document.getElementById('empty-row');
+
+            if (dataRows.length === 0) {
+                if (!emptyRow) {
+                    // Create empty row
+                    const newEmptyRow = document.createElement('tr');
+                    newEmptyRow.id = 'empty-row';
+                    newEmptyRow.innerHTML = `
+                <td colspan="6" class="text-center py-4">
+                    <div class="empty-state">
+                        <i class="fas fa-map-marker-alt fa-4x mb-3"></i>
+                        <h5>Belum ada koordinat tersimpan</h5>
+                        <p class="text-white-50">Tambahkan koordinat pertama untuk memulai</p>
+                    </div>
+                </td>
+            `;
+                    tbody.appendChild(newEmptyRow);
+                }
+            }
+        }
+
+        // Enhanced add coordinate form submission
+        document.addEventListener('DOMContentLoaded', function () {
+            // Override form submission to handle success response better
+            const addForm = document.getElementById('addCoordinateForm');
+            if (addForm) {
+                addForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!validateCoordinateForm()) {
+                        return;
+                    }
+
+                    showLoading();
+
+                    const formData = new FormData(this);
+
+                    fetch('/add_coordinate', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Cache-Control': 'no-cache'
+                        }
+                    })
+                        .then(response => {
+                            // Check if response is JSON
+                            const contentType = response.headers.get('content-type');
+                            if (contentType && contentType.includes('application/json')) {
+                                return response.json();
+                            } else {
+                                // If not JSON, it's probably a redirect or HTML - reload page
+                                window.location.reload();
+                                return null;
+                            }
+                        })
+                        .then(data => {
+                            hideLoading();
+
+                            if (data && data.success !== undefined) {
+                                if (data.success) {
+                                    showSuccess('Koordinat Ditambahkan', data.message);
+                                    clearForm();
+                                    setTimeout(() => window.location.reload(), 1500);
+                                } else {
+                                    showError('Gagal Menambahkan', data.message);
+                                }
+                            } else {
+                                // Fallback - just reload
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Add coordinate error:', error);
+                            hideLoading();
+                            // On error, reload page to see if it was actually added
+                            setTimeout(() => window.location.reload(), 1000);
+                        });
+                });
+            }
+
+            // Auto-refresh coordinates list every 30 seconds to ensure consistency
+            setInterval(refreshCoordinatesIfNeeded, 30000);
+        });
+
+        // Function to refresh coordinates if needed
+        function refreshCoordinatesIfNeeded() {
+            // Only refresh if user is idle and no modals are open
+            if (!document.querySelector('.modal.show')) {
+                fetch('/api/coordinates/list', {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const currentCount = document.querySelectorAll('#coordinates-table-body tr:not(#empty-row)').length;
+                            if (currentCount !== data.count) {
+                                console.log('📊 Coordinate count mismatch. Refreshing...');
+                                window.location.reload();
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.log('Background refresh failed:', error);
+                    });
+            }
+        }
+
+        // Enhanced page visibility handling
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                // Page is visible again, check for data consistency
+                setTimeout(refreshCoordinatesIfNeeded, 1000);
+            }
+        });
+
+        // Force clear browser cache on specific events
+        function clearBrowserCache() {
+            // Force reload with cache bypass
+            window.location.reload(true);
+        }
+
+        // Add cache-busting to critical requests
+        function fetchWithCacheBusting(url, options = {}) {
+            const cacheBuster = Date.now();
+            const separator = url.includes('?') ? '&' : '?';
+            const finalUrl = `${url}${separator}_cb=${cacheBuster}`;
+
+            return fetch(finalUrl, {
+                ...options,
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    ...options.headers
+                }
+            });
+        }
+
+        // Validation functions
+        function validateEditForm() {
+            const name = document.getElementById('edit-name').value.trim();
+            const latitude = parseFloat(document.getElementById('edit-latitude').value);
+            const longitude = parseFloat(document.getElementById('edit-longitude').value);
+            const radius = parseInt(document.getElementById('edit-radius').value);
+
+            if (!name) {
+                showToast('Nama lokasi tidak boleh kosong!', 'error');
+                return false;
+            }
+
+            if (isNaN(latitude) || latitude < -90 || latitude > 90) {
+                showToast('Latitude harus antara -90 dan 90!', 'error');
+                return false;
+            }
+
+            if (isNaN(longitude) || longitude < -180 || longitude > 180) {
+                showToast('Longitude harus antara -180 dan 180!', 'error');
+                return false;
+            }
+
+            if (isNaN(radius) || radius < 10 || radius > 1000) {
+                showToast('Radius harus antara 10 dan 1000 meter!', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Utility functions
+        function showToast(message, type = 'info') {
+            const alertClass = {
+                'success': 'alert-success',
+                'error': 'alert-danger',
+                'warning': 'alert-warning',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+
+            const icon = {
+                'success': 'fas fa-check-circle',
+                'error': 'fas fa-exclamation-triangle',
+                'warning': 'fas fa-exclamation-circle',
+                'info': 'fas fa-info-circle'
+            }[type] || 'fas fa-info-circle';
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = `
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                min-width: 300px;
+                border-radius: 15px;
+            `;
+            alertDiv.innerHTML = `
+                <i class="${icon} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            document.body.appendChild(alertDiv);
+
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showSuccess(title, message) {
+            document.getElementById('success-title').textContent = title;
+            document.getElementById('success-message').textContent = message;
+            new bootstrap.Modal(document.getElementById('successModal')).show();
+        }
+
+        function showError(title, message) {
+            showToast(`${title}: ${message}`, 'error');
+        }
+
+        // Initialize everything
+        document.addEventListener('DOMContentLoaded', function () {
+            initMap();
+            getCurrentLocation();
+
+            // Auto-hide flash messages after 5 seconds
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    const bsAlert = bootstrap.Alert.getInstance(alert) || new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+
+            // Form validation on submit
+            document.getElementById('addCoordinateForm').addEventListener('submit', function (e) {
+                if (!validateCoordinateForm()) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        function validateCoordinateForm() {
+            const name = document.getElementById('name').value.trim();
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+            const radius = parseInt(document.getElementById('radius').value);
+
+            if (!name) {
+                showToast('Nama lokasi tidak boleh kosong!', 'error');
+                return false;
+            }
+
+            if (isNaN(latitude) || latitude < -90 || latitude > 90) {
+                showToast('Latitude harus antara -90 dan 90!', 'error');
+                return false;
+            }
+
+            if (isNaN(longitude) || longitude < -180 || longitude > 180) {
+                showToast('Longitude harus antara -180 dan 180!', 'error');
+                return false;
+            }
+
+            if (isNaN(radius) || radius < 10 || radius > 1000) {
+                showToast('Radius harus antara 10 dan 1000 meter!', 'error');
+                return false;
+            }
+
+            return true;
+        }
+    </script>
+</body>
+
+</html>

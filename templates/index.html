@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Absensi</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #ffffff;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: none;
+            z-index: 4000 !important;
+            position: relative;
+        }
+
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .attendance-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-absensi {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 15px;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .btn-absensi:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+
+        .status-badge {
+            font-size: 14px;
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+
+        .time-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        /* Monthly Attendance Styles */
+        .monthly-stats {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .attendance-item {
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 0.5rem;
+            border-radius: 10px;
+        }
+
+        .attendance-item:hover {
+            transform: translateX(5px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .attendance-item.complete {
+            border-left-color: #28a745;
+        }
+
+        .attendance-item.incomplete {
+            border-left-color: #ffc107;
+        }
+
+        .attendance-item.absent {
+            border-left-color: #dc3545;
+        }
+
+        .status-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-icon.complete {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+        }
+
+        .status-icon.incomplete {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .status-icon.absent {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+        }
+
+        .month-selector {
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .month-selector select {
+            background: transparent;
+            border: none;
+            color: white;
+        }
+
+        .month-selector select option {
+            background: #2a5298;
+            color: white;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(42, 82, 152, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            z-index: 10;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .attendance-calendar {
+            max-height: 500px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+        }
+
+        .calendar-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .calendar-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .calendar-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        .calendar-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .card-header {
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0 !important;
+            color: white;
+        }
+
+        .alert {
+            border-radius: 15px;
+            border: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.2) 0%, rgba(56, 239, 125, 0.2) 100%);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            color: #28a745;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2) 0%, rgba(245, 87, 108, 0.2) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            color: #dc3545;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, rgba(23, 162, 184, 0.2) 0%, rgba(33, 150, 243, 0.2) 100%);
+            border: 1px solid rgba(23, 162, 184, 0.3);
+            color: #17a2b8;
+        }
+
+        .dropdown-menu {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            z-index: 3000 !important;
+            position: absolute !important;
+        }
+
+        .dropdown-item {
+            color: #333;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            transform: translateY(-1px);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-user-clock me-2"></i>Absensi
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('absensi') }}">
+                            <i class="fas fa-clock me-1"></i>Absensi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('profil') }}">
+                            <i class="fas fa-user me-1"></i>Profil
+                        </a>
+                    </li>
+
+                    {% if session.get('username') == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('set_coordinat') }}">
+                            <i class="fas fa-map-marker-alt me-1"></i>Koordinat
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users_dashboard') }}">
+                            <i class="fas fa-users me-1"></i>Daftar Pengguna
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
+                            data-bs-toggle="dropdown" data-bs-display="static">
+                            <i class="fas fa-user-circle me-1"></i>
+                            {{ session.full_name or session.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('profil') }}">
+                                    <i class="fas fa-user me-2"></i>Profil
+                                </a>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show"
+            role="alert">
+            <i
+                class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Welcome Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card stats-card">
+                    <div class="card-body text-center py-4">
+                        <h2 class="mb-3"><i class="fas fa-sun me-2"></i>Selamat Datang, {{ user.full_name }}!</h2>
+                        <p class="mb-0 opacity-75"><span id="current-time"></span> | <span id="current-date"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                {% if attendance and attendance.time_in and not attendance.time_out %}
+                <a href="{{ url_for('absensi') }}" class="btn btn-success btn-absensi me-3"><i
+                        class="fas fa-sign-out-alt me-2"></i>Absen Keluar</a>
+                {% elif not attendance %}
+                <a href="{{ url_for('absensi') }}" class="btn btn-primary btn-absensi me-3"><i
+                        class="fas fa-sign-in-alt me-2"></i>Absen Masuk</a>
+                {% else %}
+                <span class="badge bg-success status-badge"><i class="fas fa-check me-1"></i>Absensi Hari Ini
+                    Selesai</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Monthly Statistics -->
+        <div class="row text-center">
+            <div class="col-lg-6 col-md-6 mb-3">
+                <div class="card attendance-card text-center">
+                    <div class="card-body py-3">
+                        <i class="fas fa-calendar-check fa-2x mb-2 opacity-75"></i>
+                        <h4 id="stat-present">-</h4>
+                        <p class="mb-0 small">Hari Hadir</p>
+                    </div>
+                </div>
+            </div>
+            <!-- <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card monthly-stats text-center">
+                    <div class="card-body py-3">
+                        <i class="fas fa-percentage fa-2x mb-2 opacity-75"></i>
+                        <h4 id="stat-rate">-</h4>
+                        <p class="mb-0 small">Tingkat Kehadiran</p>
+                    </div>
+                </div>
+            </div> -->
+            <div class="col-lg-6 col-md-6 mb-3">
+                <div class="card" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white;">
+                    <div class="card-body text-center py-3">
+                        <i class="fas fa-clock fa-2x mb-2 opacity-75"></i>
+                        <h4 id="stat-hours">-</h4>
+                        <p class="mb-0 small">Total Jam</p>
+                    </div>
+                </div>
+            </div>
+            <!-- <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card" style="background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%); color: white;">
+                    <div class="card-body text-center py-3">
+                        <i class="fas fa-chart-line fa-2x mb-2 opacity-75"></i>
+                        <h4 id="stat-avg">-</h4>
+                        <p class="mb-0 small">Rata-rata/Hari</p>
+                    </div>
+                </div>
+            </div> -->
+        </div>
+
+        <!-- Monthly Attendance History -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card position-relative">
+                    <div id="attendance-loading" class="loading-overlay" style="display: none;">
+                        <div class="text-center">
+                            <div class="spinner-border text-light mb-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div>Memuat data absensi...</div>
+                        </div>
+                    </div>
+
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            Riwayat Absensi Bulan Ini
+                        </h5>
+                        <div class="month-selector">
+                            <select class="form-select form-select-sm" id="monthSelector"
+                                onchange="loadMonthlyAttendance()">
+                                <!-- Options akan diisi oleh JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <div id="attendance-container" class="attendance-calendar calendar-scroll">
+                            <!-- Data akan diisi oleh JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentMonth = new Date().getMonth() + 1;
+        let currentYear = new Date().getFullYear();
+
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('id-ID', timeOptions);
+            document.getElementById('current-date').textContent = now.toLocaleDateString('id-ID', dateOptions);
+        }
+
+        // Initialize month selector
+        function initMonthSelector() {
+            const selector = document.getElementById('monthSelector');
+            const months = [
+                'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ];
+
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1;
+            const currentYear = currentDate.getFullYear();
+
+            // Generate options for current year and previous 2 years
+            for (let year = currentYear; year >= currentYear - 2; year--) {
+                const startMonth = (year === currentYear) ? currentMonth : 12;
+                for (let month = startMonth; month >= 1; month--) {
+                    const option = document.createElement('option');
+                    option.value = `${year}-${month}`;
+                    option.textContent = `${months[month - 1]} ${year}`;
+                    if (year === currentYear && month === currentMonth) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                }
+            }
+        }
+
+        // Load monthly attendance data
+        async function loadMonthlyAttendance() {
+            const selector = document.getElementById('monthSelector');
+            const [year, month] = selector.value.split('-').map(Number);
+
+            document.getElementById('attendance-loading').style.display = 'flex';
+
+            try {
+                const response = await fetch(`/api/attendance/monthly?month=${month}&year=${year}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    updateStatistics(data.stats);
+                    renderAttendanceList(data.attendance, data.stats);
+                } else {
+                    showError('Gagal memuat data absensi: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            } finally {
+                document.getElementById('attendance-loading').style.display = 'none';
+            }
+        }
+
+        // Update statistics display
+        function updateStatistics(stats) {
+            document.getElementById('stat-present').textContent = stats.present_days;
+            // document.getElementById('stat-rate').textContent = stats.attendance_rate + '%';
+            document.getElementById('stat-hours').textContent = stats.total_work_hours + 'h';
+            // document.getElementById('stat-avg').textContent = stats.avg_work_hours + 'h';
+        }
+
+        // Render attendance list
+        function renderAttendanceList(attendance, stats) {
+            const container = document.getElementById('attendance-container');
+
+            if (attendance.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times fa-4x mb-3"></i>
+                        <h5>Belum Ada Data Absensi</h5>
+                        <p class="text-muted">Belum ada data absensi untuk bulan ${stats.month_name} ${stats.year}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const attendanceHtml = attendance.map(item => {
+                const date = new Date(item.date);
+                const dayName = date.toLocaleDateString('id-ID', { weekday: 'long' });
+                const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+
+                let statusIcon = '';
+                let statusText = '';
+                let statusClass = '';
+
+                switch (item.status) {
+                    case 'complete':
+                        statusIcon = 'check-circle';
+                        statusText = 'Lengkap';
+                        statusClass = 'complete';
+                        break;
+                    case 'incomplete':
+                        statusIcon = 'clock';
+                        statusText = 'Belum Keluar';
+                        statusClass = 'incomplete';
+                        break;
+                    default:
+                        statusIcon = 'times-circle';
+                        statusText = 'Tidak Hadir';
+                        statusClass = 'absent';
+                }
+
+                const workHours = item.work_hours ? `${item.work_hours} jam` : '-';
+                const photoIcon = item.has_photo ? '<i class="fas fa-camera text-primary ms-2" title="Ada foto"></i>' : '';
+
+                return `
+                    <div class="attendance-item ${statusClass} p-3 border-bottom">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <div class="status-icon ${statusClass}">
+                                    <i class="fas fa-${statusIcon}"></i>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1 text-white">${dayName}, ${dateStr}</h6>
+                                        <small class="text-white-50">${item.date}</small>
+                                    </div>
+                                    <span class="badge bg-${statusClass === 'complete' ? 'success' : statusClass === 'incomplete' ? 'warning' : 'danger'}">
+                                        ${statusText}
+                                    </span>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-sm-4">
+                                        <small class="text-white-50 d-block">Masuk</small>
+                                        <strong class="text-white">${item.time_in || '-'}</strong>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <small class="text-white-50 d-block">Keluar</small>
+                                        <strong class="text-white">${item.time_out || '-'}</strong>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <small class="text-white-50 d-block">Jam Kerja</small>
+                                        <strong class="text-white">${workHours}${photoIcon}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = attendanceHtml;
+        }
+
+        // Show error message
+        function showError(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild.nextSibling);
+
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            updateTime();
+            setInterval(updateTime, 1000);
+            initMonthSelector();
+            loadMonthlyAttendance();
+        });
+    </script>
+</body>
+
+
+</html>
