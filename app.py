@@ -29,6 +29,17 @@ except ImportError:
 # Import custom modules
 from register_web import init_web_registration
 
+# Initialize database on startup
+def init_db_if_needed():
+    """Initialize database if it doesn't exist"""
+    if not os.path.exists('database.db'):
+        print("Database not found. Initializing...")
+        from init_db import init_database
+        init_database()
+
+# Call initialization
+init_db_if_needed()
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -2158,6 +2169,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
