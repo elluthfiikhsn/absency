@@ -409,6 +409,39 @@ def profil():
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
 
+@app.route('/add_coordinate', methods=['POST'])
+@login_required
+def add_coordinate():
+    """Add new coordinate"""
+    if session.get('username') != 'admin':
+        flash('Access denied. Admin only.', 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        name = request.form['name']
+        latitude = float(request.form['latitude'])
+        longitude = float(request.form['longitude'])
+        radius = int(request.form.get('radius', 100))
+        
+        conn = get_db_connection()
+        conn.execute(
+            'INSERT INTO coordinates (name, latitude, longitude, radius, active) VALUES (?, ?, ?, ?, 1)',
+            (name, latitude, longitude, radius)
+        )
+        conn.commit()
+        conn.close()
+        
+        flash('Koordinat berhasil ditambahkan!', 'success')
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('set_coordinat'))
+
+
+# Tambahkan route ini ke file app.py Anda
+
+# Perbaikan untuk fungsi delete_coordinate di app.py
+
 @app.route('/delete_coordinate', methods=['POST'])
 @login_required
 def delete_coordinate():
