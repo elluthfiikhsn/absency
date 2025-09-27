@@ -408,6 +408,38 @@ def profil():
                          face_data=face_data,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
+@app.route('/remove_face', methods=['POST'])
+@login_required
+def remove_face():
+    """Remove face recognition for user"""
+    try:
+        conn = get_db_connection()
+        
+        # Get face data to remove files
+        face_data = conn.execute(
+            'SELECT photo_path FROM face_data WHERE user_id = ? AND active = 1',
+            (session['user_id'],)
+        ).fetchall()
+        
+        # Remove face data from database
+        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
+        conn.commit()
+        conn.close()
+        
+        # Remove physical files
+        for data in face_data:
+            if data['photo_path'] and os.path.exists(data['photo_path']):
+                try:
+                    os.remove(data['photo_path'])
+                except Exception:
+                    pass  # Continue even if file removal fails
+        
+        return jsonify({'success': True, 'message': 'Face recognition berhasil dihapus!'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+
+
 @app.route('/add_coordinate', methods=['POST'])
 @login_required
 def add_coordinate():
@@ -1498,10 +1530,9 @@ def api_weekly_attendance():
             'error': str(e)
         }), 500
 
-# Tambahkan route register di app.py (jika belum ada)
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """User registration page"""
+    """User registration page with face recognition setup"""
     if request.method == 'POST':
         username = request.form.get('username')
         full_name = request.form.get('full_name')
@@ -1509,7 +1540,7 @@ def register():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
-        # Validation
+        # Validation (sama seperti sebelumnya)
         if not all([username, full_name, password, confirm_password]):
             flash('Semua field wajib harus diisi!', 'error')
             return render_template('register.html')
@@ -1526,7 +1557,7 @@ def register():
             flash('Password dan konfirmasi password tidak cocok!', 'error')
             return render_template('register.html')
         
-        # Check password strength (harus ada huruf dan angka)
+        # Check password strength
         if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
             flash('Password harus mengandung huruf dan angka!', 'error')
             return render_template('register.html')
@@ -1548,19 +1579,34 @@ def register():
             hashed_password = generate_password_hash(password)
             
             # Insert new user
-            conn.execute('''
+            cursor = conn.execute('''
                 INSERT INTO users (username, full_name, email, password, role, active)
                 VALUES (?, ?, ?, ?, 'user', 1)
             ''', (username, full_name, email, hashed_password))
             
+            user_id = cursor.lastrowid
             conn.commit()
+            
+            # Handle face image if provided
+            face_setup_success = True
+            face_message = ""
+            
+            if 'face_image' in request.files:
+                face_file = request.files['face_image']
+                if face_file and face_file.filename != '' and allowed_file(face_file.filename):
+                    if FACE_RECOGNITION_AVAILABLE:
+                        face_setup_success, face_message = process_face_registration(face_file, user_id, full_name)
+                    else:
+                        # Just save the image without processing
+                        face_setup_success, face_message = save_face_image_simple(face_file, user_id, full_name)
+            
             conn.close()
             
-            # Flash success message with face recognition reminder
-            flash('Registrasi berhasil! Silakan login dan setup face recognition untuk keamanan tambahan.', 'success')
-            
-            # Set session flag untuk menampilkan face recognition reminder setelah login
-            session['show_face_setup_reminder'] = True
+            # Success message
+            if face_setup_success and face_message:
+                flash(f'Registrasi berhasil! {face_message}', 'success')
+            else:
+                flash('Registrasi berhasil! Anda bisa setup face recognition nanti di menu profil.', 'success')
             
             return redirect(url_for('login'))
             
@@ -1570,6 +1616,77 @@ def register():
             return render_template('register.html')
     
     return render_template('register.html')
+
+
+def process_face_registration(face_file, user_id, full_name):
+    """Process face image during registration"""
+    try:
+        # Create user-specific folder
+        user_folder = os.path.join(app.config['FACES_FOLDER'], f"{full_name}_{user_id}")
+        if not os.path.exists(user_folder):
+            os.makedirs(user_folder)
+        
+        # Save original image
+        filename = secure_filename(f"{user_id}_face.jpg")
+        image_path = os.path.join(user_folder, filename)
+        face_file.save(image_path)
+        
+        # Process with face_recognition if available
+        image = face_recognition.load_image_file(image_path)
+        face_encodings = face_recognition.face_encodings(image)
+        
+        if not face_encodings:
+            os.remove(image_path)
+            return False, "Tidak ada wajah terdeteksi dalam gambar"
+        
+        if len(face_encodings) > 1:
+            os.remove(image_path)
+            return False, "Terdeteksi lebih dari satu wajah"
+        
+        # Save encoding to database
+        face_encoding = face_encodings[0]
+        encoding_json = json.dumps(face_encoding.tolist())
+        
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO face_data (user_id, face_encoding, photo_path, active)
+            VALUES (?, ?, ?, 1)
+        ''', (user_id, encoding_json, image_path))
+        conn.commit()
+        conn.close()
+        
+        return True, "Face recognition berhasil disetup!"
+        
+    except Exception as e:
+        return False, f"Error processing face: {str(e)}"
+
+
+def save_face_image_simple(face_file, user_id, full_name):
+    """Simple face image save without processing (untuk Railway)"""
+    try:
+        # Create user-specific folder
+        user_folder = os.path.join(app.config['FACES_FOLDER'], f"{full_name}_{user_id}")
+        if not os.path.exists(user_folder):
+            os.makedirs(user_folder)
+        
+        # Save image
+        filename = secure_filename(f"{user_id}_face.jpg")
+        image_path = os.path.join(user_folder, filename)
+        face_file.save(image_path)
+        
+        # Save to database without encoding
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO face_data (user_id, photo_path, active)
+            VALUES (?, ?, 1)
+        ''', (user_id, image_path))
+        conn.commit()
+        conn.close()
+        
+        return True, "Foto wajah berhasil disimpan!"
+        
+    except Exception as e:
+        return False, f"Error saving face image: {str(e)}"
 
 # API untuk check username availability
 @app.route('/api/check_username', methods=['POST'])
@@ -2170,7 +2287,6 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
-
 
 
 
