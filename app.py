@@ -16,16 +16,97 @@ import tempfile
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
+FACE_RECOGNITION_ERROR = ""
+
 try:
     import cv2
+    print("✓ OpenCV imported successfully")
+    
     import face_recognition
+    print("✓ Face recognition imported successfully")
+    
     import numpy as np
     import json
+    
+    # Test basic functionality
+    test_array = np.zeros((100, 100, 3), dtype=np.uint8)
+    encodings = face_recognition.face_encodings(test_array)
+    print("✓ Face recognition test successful")
+    
     FACE_RECOGNITION_AVAILABLE = True
-    print("Face recognition libraries loaded successfully")
-except ImportError:
+    print("✓ Face recognition libraries loaded successfully")
+    
+except ImportError as e:
+    FACE_RECOGNITION_ERROR = f"Import error: {str(e)}"
+    print(f"⚠️ Warning: Face recognition libraries not available - {FACE_RECOGNITION_ERROR}")
     FACE_RECOGNITION_AVAILABLE = False
-    print("Warning: Face recognition libraries not available in this environment")
+    
+except Exception as e:
+    FACE_RECOGNITION_ERROR = f"Runtime error: {str(e)}"
+    print(f"⚠️ Warning: Face recognition test failed - {FACE_RECOGNITION_ERROR}")
+    FACE_RECOGNITION_AVAILABLE = False
+
+# Tambahkan route debug untuk troubleshooting
+@app.route('/debug/face-recognition')
+def debug_face_recognition():
+    """Debug face recognition status"""
+    debug_info = {
+        'face_recognition_available': FACE_RECOGNITION_AVAILABLE,
+        'error_message': FACE_RECOGNITION_ERROR,
+        'python_version': sys.version,
+        'platform': platform.platform(),
+    }
+    
+    try:
+        import cv2
+        debug_info['opencv_version'] = cv2.__version__
+    except:
+        debug_info['opencv_version'] = 'Not available'
+    
+    try:
+        import face_recognition
+        debug_info['face_recognition_version'] = face_recognition.__version__ if hasattr(face_recognition, '__version__') else 'Unknown'
+    except:
+        debug_info['face_recognition_version'] = 'Not available'
+    
+    try:
+        import numpy as np
+        debug_info['numpy_version'] = np.__version__
+    except:
+        debug_info['numpy_version'] = 'Not available'
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Face Recognition Debug</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            .success {{ color: green; }}
+            .error {{ color: red; }}
+            .warning {{ color: orange; }}
+            pre {{ background: #f5f5f5; padding: 15px; border-radius: 5px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Face Recognition Debug Info</h1>
+        <h2>Status: <span class="{'success' if FACE_RECOGNITION_AVAILABLE else 'error'}">
+            {'✓ Available' if FACE_RECOGNITION_AVAILABLE else '✗ Not Available'}
+        </span></h2>
+        
+        <h3>Details:</h3>
+        <pre>{json.dumps(debug_info, indent=2)}</pre>
+        
+        <h3>Troubleshooting:</h3>
+        <ul>
+            <li>Pastikan semua dependencies di requirements.txt terinstall</li>
+            <li>Railway mungkin memerlukan system packages tambahan</li>
+            <li>Cek Railway build logs untuk error messages</li>
+            <li>Gunakan upload foto sebagai alternatif</li>
+        </ul>
+    </body>
+    </html>
+    """
 
 # Import custom modules
 from register_web import init_web_registration
@@ -2104,9 +2185,7 @@ def export_monthly_attendance_excel():
 @app.route('/setup_face', methods=['POST'])
 @login_required
 def setup_face():
-    """Setup face recognition for user"""
-    if not FACE_RECOGNITION_AVAILABLE:
-        return jsonify({'success': False, 'message': 'Face recognition not available'})
+    """Setup face recognition for user - dengan fallback"""
     
     if 'face_image' not in request.files:
         return jsonify({'success': False, 'message': 'No face image provided'})
@@ -2132,40 +2211,68 @@ def setup_face():
         image_path = os.path.join(user_folder, filename)
         face_file.save(image_path)
         
-        # Process with face_recognition
-        image = face_recognition.load_image_file(image_path)
-        face_encodings = face_recognition.face_encodings(image)
-        
-        if not face_encodings:
-            os.remove(image_path)
+        if FACE_RECOGNITION_AVAILABLE:
+            # Full face recognition processing
+            image = face_recognition.load_image_file(image_path)
+            face_encodings = face_recognition.face_encodings(image)
+            
+            if not face_encodings:
+                os.remove(image_path)
+                conn.close()
+                return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
+            
+            if len(face_encodings) > 1:
+                os.remove(image_path)
+                conn.close()
+                return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
+            
+            # Get the face encoding
+            face_encoding = face_encodings[0]
+            encoding_json = json.dumps(face_encoding.tolist())
+            
+            # Deactivate old face data
+            conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
+            
+            # Save new encoding to database
+            conn.execute('''
+                INSERT INTO face_data (user_id, face_encoding, photo_path, active)
+                VALUES (?, ?, ?, 1)
+            ''', (session['user_id'], encoding_json, image_path))
+            
+            conn.commit()
             conn.close()
-            return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
-        
-        if len(face_encodings) > 1:
-            os.remove(image_path)
+            
+            return jsonify({'success': True, 'message': 'Face recognition berhasil disetup dengan AI processing!'})
+            
+        else:
+            # Fallback: Save image without face recognition processing
+            # Deactivate old face data
+            conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
+            
+            # Save image path only (no encoding)
+            conn.execute('''
+                INSERT INTO face_data (user_id, photo_path, active)
+                VALUES (?, ?, 1)
+            ''', (session['user_id'], image_path))
+            
+            conn.commit()
             conn.close()
-            return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
-        
-        # Get the face encoding
-        face_encoding = face_encodings[0]
-        encoding_json = json.dumps(face_encoding.tolist())
-        
-        # Deactivate old face data
-        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-        
-        # Save new encoding to database
-        conn.execute('''
-            INSERT INTO face_data (user_id, face_encoding, photo_path, active)
-            VALUES (?, ?, ?, 1)
-        ''', (session['user_id'], encoding_json, image_path))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Face recognition berhasil disetup!'})
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Foto wajah berhasil disimpan! (Face recognition processing tidak tersedia: {FACE_RECOGNITION_ERROR})'
+            })
         
     except Exception as e:
+        # Clean up file if error
+        if 'image_path' in locals() and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+            except:
+                pass
+                
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
+
 
 
 @app.route('/remove_face', methods=['POST'])
@@ -2286,6 +2393,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
