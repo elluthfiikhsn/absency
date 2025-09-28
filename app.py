@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-import sqlite3
+import psycopg2
+import psycopg2.extras
+from urllib.parse import urlparse
 import os
 from datetime import datetime
 import uuid
@@ -12,6 +14,8 @@ from io import BytesIO
 from flask import send_file
 from datetime import datetime, timedelta
 import tempfile
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 
 # Face recognition imports (optional)
@@ -31,16 +35,140 @@ except ImportError:
 from register_web import init_web_registration
 
 # Initialize database on startup
-def init_db_if_needed():
-    """Initialize database if it doesn't exist"""
-    if not os.path.exists('database.db'):
-        print("Database not found. Initializing...")
-        from init_db import init_database
-        init_database()
+def get_db_connection():
+    """Get database connection - supports both SQLite and PostgreSQL"""
+    if DATABASE_URL:
+        # PostgreSQL connection for production
+        try:
+            url = urlparse(DATABASE_URL)
+            conn = psycopg2.connect(
+                database=url.path[1:],
+                user=url.username,
+                password=url.password,
+                host=url.hostname,
+                port=url.port,
+                cursor_factory=psycopg2.extras.RealDictCursor  # This makes results behave like sqlite3.Row
+            )
+            conn.autocommit = True
+            return conn
+        except Exception as e:
+            print(f"PostgreSQL connection failed: {e}")
+            raise
+    else:
+        # SQLite connection for local development
+        conn = sqlite3.connect('database.db')
+        conn.row_factory = sqlite3.Row
+        return conn
 
 # Call initialization
-init_db_if_needed()
+def init_db_if_needed():
+    """Initialize database if needed"""
+    if DATABASE_URL:
+        print("Using PostgreSQL database...")
+        try:
+            from init_postgresql import init_postgresql_database
+            init_postgresql_database()
+        except Exception as e:
+            print(f"Error initializing PostgreSQL: {e}")
+    else:
+        print("Using SQLite database...")
+        if not os.path.exists('database.db'):
+            print("Database not found. Initializing...")
+            from init_db import init_database
+            init_database()
 
+def execute_query(query, params=None, fetch=None):
+    """
+    Universal query executor that works with both PostgreSQL and SQLite
+    fetch options: 'one', 'all', None (for INSERT/UPDATE/DELETE)
+    """
+    conn = get_db_connection()
+    
+    try:
+        if DATABASE_URL:
+            # PostgreSQL
+            cursor = conn.cursor()
+            if params:
+                # Convert SQLite ? placeholders to PostgreSQL %s
+                pg_query = query.replace('?', '%s')
+                cursor.execute(pg_query, params)
+            else:
+                cursor.execute(query)
+            
+            if fetch == 'one':
+                result = cursor.fetchone()
+            elif fetch == 'all':
+                result = cursor.fetchall()
+            else:
+                result = cursor
+            
+            cursor.close()
+            conn.close()
+            return result
+        else:
+            # SQLite
+            if fetch == 'one':
+                result = conn.execute(query, params or ()).fetchone()
+            elif fetch == 'all':
+                result = conn.execute(query, params or ()).fetchall()
+            else:
+                result = conn.execute(query, params or ())
+            
+            conn.commit()
+            conn.close()
+            return result
+            
+    except Exception as e:
+        conn.close()
+        raise e
+
+
+# Helper functions for common database operations
+def get_user_by_username(username):
+    """Get user by username"""
+    return execute_query(
+        'SELECT * FROM users WHERE username = ? AND active = TRUE',
+        (username,),
+        fetch='one'
+    )
+
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    return execute_query(
+        'SELECT * FROM users WHERE id = ?',
+        (user_id,),
+        fetch='one'
+    )
+
+def create_user(username, full_name, email, password, role='user'):
+    """Create new user"""
+    if DATABASE_URL:
+        # PostgreSQL - RETURNING clause
+        query = '''
+            INSERT INTO users (username, full_name, email, password, role, active)
+            VALUES (%s, %s, %s, %s, %s, TRUE)
+            RETURNING id
+        '''
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, (username, full_name, email, password, role))
+        result = cursor.fetchone()
+        user_id = result['id'] if result else None
+        cursor.close()
+        conn.close()
+        return user_id
+    else:
+        # SQLite
+        conn = get_db_connection()
+        cursor = conn.execute('''
+            INSERT INTO users (username, full_name, email, password, role, active)
+            VALUES (?, ?, ?, ?, ?, 1)
+        ''', (username, full_name, email, password, role))
+        user_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return user_id
+        
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -2423,3 +2551,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
