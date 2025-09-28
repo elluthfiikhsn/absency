@@ -87,24 +87,21 @@ def init_database():
     ''')
     
     # Create default admin user
-    admin_password = generate_password_hash('admin123')
+    admin_password = generate_password_hash('admin.admin')
     cursor.execute('''
         INSERT OR IGNORE INTO users (username, full_name, email, password, role)
         VALUES (?, ?, ?, ?, ?)
     ''', ('admin', 'Administrator', 'admin@example.com', admin_password, 'admin'))
     
-    # # Create default coordinate (Jakarta)
-    # cursor.execute('''
-    #     INSERT OR IGNORE INTO coordinates (name, latitude, longitude, radius, active)
-    #     VALUES (?, ?, ?, ?, ?)
-    # ''', ('Kantor Pusat Jakarta', -6.2088, 106.8456, 100, 1))
+
     
     conn.commit()
     conn.close()
     
     print("Database initialized successfully!")
-    print("Default admin user: admin / admin123")
+    print("Default admin user: admin / admin.admin")
 
 if __name__ == '__main__':
     init_database()
+
 
