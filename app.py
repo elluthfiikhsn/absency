@@ -1,11 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-import psycopg2
-import psycopg2.extras
-from urllib.parse import urlparse
+import sqlite3
 import os
-import sqlite3  # Add this import
 from datetime import datetime
 import uuid
 import json
@@ -15,9 +12,7 @@ from io import BytesIO
 from flask import send_file
 from datetime import datetime, timedelta
 import tempfile
-import math
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
@@ -35,145 +30,24 @@ except ImportError:
 # Import custom modules
 from register_web import init_web_registration
 
-def get_db_connection():
-    """Get database connection - supports both SQLite and PostgreSQL"""
-    if DATABASE_URL:
-        # PostgreSQL connection for production
-        try:
-            url = urlparse(DATABASE_URL)
-            conn = psycopg2.connect(
-                database=url.path[1:],
-                user=url.username,
-                password=url.password,
-                host=url.hostname,
-                port=url.port,
-                cursor_factory=psycopg2.extras.RealDictCursor
-            )
-            conn.autocommit = True
-            return conn
-        except Exception as e:
-            print(f"PostgreSQL connection failed: {e}")
-            raise
-    else:
-        # SQLite connection for local development
-        conn = sqlite3.connect('database.db')
-        conn.row_factory = sqlite3.Row
-        return conn
-
-def execute_query(query, params=None, fetch=None):
-    """
-    Universal query executor that works with both PostgreSQL and SQLite
-    fetch options: 'one', 'all', None (for INSERT/UPDATE/DELETE)
-    """
-    conn = get_db_connection()
-    
-    try:
-        if DATABASE_URL:
-            # PostgreSQL
-            cursor = conn.cursor()
-            if params:
-                # Convert SQLite ? placeholders to PostgreSQL %s
-                pg_query = query.replace('?', '%s')
-                cursor.execute(pg_query, params)
-            else:
-                cursor.execute(query)
-            
-            if fetch == 'one':
-                result = cursor.fetchone()
-            elif fetch == 'all':
-                result = cursor.fetchall()
-            else:
-                result = cursor
-            
-            cursor.close()
-            conn.close()
-            return result
-        else:
-            # SQLite
-            if fetch == 'one':
-                result = conn.execute(query, params or ()).fetchone()
-            elif fetch == 'all':
-                result = conn.execute(query, params or ()).fetchall()
-            else:
-                result = conn.execute(query, params or ())
-            
-            conn.commit()
-            conn.close()
-            return result
-            
-    except Exception as e:
-        conn.close()
-        raise e
-
-def get_user_by_username(username):
-    """Get user by username"""
-    return execute_query(
-        'SELECT * FROM users WHERE username = ? AND active = TRUE',
-        (username,),
-        fetch='one'
-    )
-
-def get_user_by_id(user_id):
-    """Get user by ID"""
-    return execute_query(
-        'SELECT * FROM users WHERE id = ?',
-        (user_id,),
-        fetch='one'
-    )
-
-def create_user(username, full_name, email, password, role='user'):
-    """Create new user"""
-    if DATABASE_URL:
-        # PostgreSQL - RETURNING clause
-        query = '''
-            INSERT INTO users (username, full_name, email, password, role, active)
-            VALUES (%s, %s, %s, %s, %s, TRUE)
-            RETURNING id
-        '''
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, (username, full_name, email, password, role))
-        result = cursor.fetchone()
-        user_id = result['id'] if result else None
-        cursor.close()
-        conn.close()
-        return user_id
-    else:
-        # SQLite
-        conn = get_db_connection()
-        cursor = conn.execute('''
-            INSERT INTO users (username, full_name, email, password, role, active)
-            VALUES (?, ?, ?, ?, ?, 1)
-        ''', (username, full_name, email, password, role))
-        user_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return user_id
-
+# Initialize database on startup
 def init_db_if_needed():
-    """Initialize database if needed"""
-    if DATABASE_URL:
-        print("Using PostgreSQL database...")
-        try:
-            from init_postgresql import init_postgresql_database
-            init_postgresql_database()
-        except Exception as e:
-            print(f"Error initializing PostgreSQL: {e}")
-    else:
-        print("Using SQLite database...")
-        if not os.path.exists('database.db'):
-            print("Database not found. Initializing...")
-            from init_db import init_database
-            init_database()
+    """Initialize database if it doesn't exist"""
+    if not os.path.exists('database.db'):
+        print("Database not found. Initializing...")
+        from init_db import init_database
+        init_database()
 
-# Initialize Flask app
+# Call initialization
+init_db_if_needed()
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['FACES_FOLDER'] = 'faces'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Create directories if they don't exist
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['FACES_FOLDER'], exist_ok=True)
 
@@ -182,6 +56,12 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_db_connection():
+    """Get database connection"""
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def login_required(f):
     """Decorator to require login for routes"""
@@ -201,26 +81,18 @@ def verify_face_for_attendance(image_file, user_id):
     try:
         # Get stored face encoding from database
         conn = get_db_connection()
-        if DATABASE_URL:
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT face_encoding FROM face_data WHERE user_id = %s AND active = TRUE',
-                (user_id,)
-            )
-            face_data = cursor.fetchone()
-            cursor.close()
-        else:
-            face_data = conn.execute(
-                'SELECT face_encoding FROM face_data WHERE user_id = ? AND active = 1',
-                (user_id,)
-            ).fetchone()
+        face_data = conn.execute(
+            'SELECT face_encoding FROM face_data WHERE user_id = ? AND active = 1',
+            (user_id,)
+        ).fetchone()
         conn.close()
         
-        if not face_data or not face_data['face_encoding']:
+        if not face_data:
+            # No face data stored, allow attendance but warn
             return True, "No face data registered, attendance allowed"
         
         # Load stored encoding
-        stored_encoding = np.array(json.loads(face_data['face_encoding']))
+        stored_encoding = np.array(json.loads(face_data[0]))
         
         # Process uploaded image
         image = face_recognition.load_image_file(image_file)
@@ -247,16 +119,6 @@ def verify_face_for_attendance(image_file, user_id):
             
     except Exception as e:
         return False, f"Error verifying face: {str(e)}"
-
-def haversine(lat1, lon1, lat2, lon2):
-    """Calculate distance between two coordinate points (meters)"""
-    R = 6371000  # Earth radius in meters
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
 
 
 @app.route('/absensi')
@@ -885,46 +747,6 @@ def update_coordinate():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
 
-@app.route('/profile')
-@login_required
-def profile():
-    """User profile page"""
-    conn = get_db_connection()
-    try:
-        if DATABASE_URL:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE id = %s', (session['user_id'],))
-            user = cursor.fetchone()
-            cursor.close()
-        else:
-            user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-        conn.close()
-        
-        return render_template('profile.html', user=user)
-    except Exception as e:
-        print(f"Error loading profile: {e}")
-        conn.close()
-        flash('Error loading profile', 'error')
-        return redirect(url_for('index'))
-
-@app.route('/test_db')
-def test_db():
-    """Test database connection"""
-    try:
-        conn = get_db_connection()
-        if DATABASE_URL:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) as count FROM users')
-            result = cursor.fetchone()
-            cursor.close()
-        else:
-            result = conn.execute('SELECT COUNT(*) as count FROM users').fetchone()
-        
-        conn.close()
-        return f"Database connection successful! Users count: {result['count']}"
-    except Exception as e:
-        return f"Database connection failed: {str(e)}"
-
 
 @app.route('/logout')
 def logout():
@@ -940,22 +762,6 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('500.html'), 500
-
-# Initialize database and web registration
-try:
-    init_db_if_needed()
-    
-    # Import and initialize web registration
-    from register_web import init_web_registration
-    web_reg = init_web_registration(app)
-    
-    if FACE_RECOGNITION_AVAILABLE:
-        print("✅ Face recognition enabled")
-    else:
-        print("⚠️ Face recognition disabled - install required packages")
-        
-except Exception as e:
-    print(f"❌ Initialization error: {e}")
 
 
 @app.route('/api/attendance/monthly', methods=['GET'])
@@ -1769,7 +1575,7 @@ def api_weekly_attendance():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """User registration page compatible with PostgreSQL"""
+    """User registration page with FLEXIBLE face recognition setup"""
     if request.method == 'POST':
         username = request.form.get('username')
         full_name = request.form.get('full_name')
@@ -1799,7 +1605,7 @@ def register():
             flash('Password harus mengandung huruf dan angka!', 'error')
             return render_template('register.html')
         
-        # Face image handling
+        # TEMPORARY: Make face image optional for testing
         face_file = None
         face_required = False  # Set to True when ready to enforce
         
@@ -1807,7 +1613,7 @@ def register():
         
         if 'face_image' in request.files and request.files['face_image'].filename != '':
             face_file = request.files['face_image']
-            print(f"DEBUG: Face file received: {face_file.filename}")
+            print(f"DEBUG: Face file received: {face_file.filename}, size: {face_file.content_length}")
             
             if not allowed_file(face_file.filename):
                 flash('Format file foto tidak valid! Gunakan JPG, PNG, atau JPEG.', 'error')
@@ -1815,10 +1621,18 @@ def register():
         elif face_required:
             flash('Foto wajah WAJIB diupload untuk registrasi!', 'error')
             return render_template('register.html')
+        else:
+            print("DEBUG: No face file provided, but not required")
+        
+        conn = get_db_connection()
         
         # Check if username exists
-        existing_user = get_user_by_username(username)
+        existing_user = conn.execute(
+            'SELECT id FROM users WHERE username = ?', (username,)
+        ).fetchone()
+        
         if existing_user:
+            conn.close()
             flash('Username sudah digunakan!', 'error')
             return render_template('register.html')
         
@@ -1827,10 +1641,13 @@ def register():
             hashed_password = generate_password_hash(password)
             
             # Insert new user
-            user_id = create_user(username, full_name, email, hashed_password, 'user')
+            cursor = conn.execute('''
+                INSERT INTO users (username, full_name, email, password, role, active)
+                VALUES (?, ?, ?, ?, 'user', 1)
+            ''', (username, full_name, email, hashed_password))
             
-            if not user_id:
-                raise Exception("Failed to create user")
+            user_id = cursor.lastrowid
+            conn.commit()
             
             print(f"DEBUG: User created with ID: {user_id}")
             
@@ -1843,17 +1660,30 @@ def register():
                 if face_setup_success:
                     face_message = f"Registrasi berhasil! {face_message}"
                 else:
+                    # Log the error but don't fail registration
                     print(f"DEBUG: Face processing failed: {face_message}")
                     face_message = "Registrasi berhasil! (Face recognition setup gagal, bisa disetup nanti)"
             else:
                 face_message = "Registrasi berhasil! Face recognition dapat disetup nanti di profil."
             
+            conn.close()
+            
             print(f"DEBUG: Registration successful: {face_message}")
+            
+            # Success message
             flash(face_message, 'success')
             return redirect(url_for('login'))
             
         except Exception as e:
             print(f"DEBUG: Registration error: {str(e)}")
+            # Cleanup on error
+            try:
+                if 'user_id' in locals():
+                    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+                    conn.commit()
+            except:
+                pass
+            conn.close()
             flash(f'Error saat registrasi: {str(e)}', 'error')
             return render_template('register.html')
     
@@ -1861,7 +1691,7 @@ def register():
 
 
 def process_face_registration(face_file, user_id, full_name):
-    """Process face image - PostgreSQL compatible"""
+    """Process face image during registration - with enhanced error handling"""
     try:
         print(f"DEBUG: Starting face processing for user {user_id}")
         
@@ -1877,31 +1707,13 @@ def process_face_registration(face_file, user_id, full_name):
         face_file.save(image_path)
         print(f"DEBUG: Image saved to: {image_path}")
         
-        # Insert face data
-        if DATABASE_URL:
-            # PostgreSQL
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO face_data (user_id, photo_path, active)
-                VALUES (%s, %s, TRUE)
-                RETURNING id
-            ''', (user_id, image_path))
-            result = cursor.fetchone()
-            face_data_id = result['id'] if result else None
-            cursor.close()
-            conn.close()
-        else:
-            # SQLite
-            conn = get_db_connection()
-            cursor = conn.execute('''
-                INSERT INTO face_data (user_id, photo_path, active)
-                VALUES (?, ?, 1)
-            ''', (user_id, image_path))
-            face_data_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-        
+        # Always save to database first (even without encoding)
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO face_data (user_id, photo_path, active)
+            VALUES (?, ?, 1)
+        ''', (user_id, image_path))
+        face_data_id = conn.lastrowid
         print(f"DEBUG: Face data record created with ID: {face_data_id}")
         
         # Try face processing if available
@@ -1914,42 +1726,42 @@ def process_face_registration(face_file, user_id, full_name):
                 
                 if not face_encodings:
                     print("DEBUG: No faces detected in image")
+                    conn.commit()
+                    conn.close()
                     return True, "Foto wajah disimpan (wajah tidak terdeteksi untuk encoding)!"
                 
                 if len(face_encodings) > 1:
                     print(f"DEBUG: Multiple faces detected: {len(face_encodings)}")
+                    conn.commit()
+                    conn.close()
                     return True, "Foto wajah disimpan (multiple faces detected, no encoding)!"
                 
                 # Save encoding to database
                 face_encoding = face_encodings[0]
                 encoding_json = json.dumps(face_encoding.tolist())
                 
-                if DATABASE_URL:
-                    # PostgreSQL
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        UPDATE face_data SET face_encoding = %s WHERE id = %s
-                    ''', (encoding_json, face_data_id))
-                    cursor.close()
-                    conn.close()
-                else:
-                    # SQLite
-                    conn = get_db_connection()
-                    conn.execute('''
-                        UPDATE face_data SET face_encoding = ? WHERE id = ?
-                    ''', (encoding_json, face_data_id))
-                    conn.commit()
-                    conn.close()
+                conn.execute('''
+                    UPDATE face_data SET face_encoding = ? WHERE id = ?
+                ''', (encoding_json, face_data_id))
                 
                 print("DEBUG: Face encoding saved successfully")
+                conn.commit()
+                conn.close()
+                
                 return True, "Face recognition berhasil disetup dengan encoding!"
                 
             except Exception as face_error:
                 print(f"DEBUG: Face recognition error: {str(face_error)}")
+                # Keep the photo record without encoding
+                conn.commit()
+                conn.close()
                 return True, f"Foto wajah disimpan (face processing error, bisa diproses nanti)!"
         else:
             print("DEBUG: Face recognition not available")
+            # Save without encoding
+            conn.commit()
+            conn.close()
+            
             return True, "Foto wajah berhasil disimpan!"
             
     except Exception as e:
@@ -1962,9 +1774,11 @@ def process_face_registration(face_file, user_id, full_name):
             if 'user_folder' in locals() and os.path.exists(user_folder) and not os.listdir(user_folder):
                 os.rmdir(user_folder)
                 print("DEBUG: Cleaned up empty folder")
+            if 'conn' in locals():
+                conn.close()
         except:
             pass
-        return False, f"Error memproses foto wajah: {str(e)}"   
+        return False, f"Error memproses foto wajah: {str(e)}"    
     
 @app.route('/debug/test_registration')
 def debug_test_registration():
@@ -2012,48 +1826,62 @@ def api_check_username():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page"""
+    """Login page with flexible face data requirements"""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
         conn = get_db_connection()
-        try:
-            if DATABASE_URL:
-                cursor = conn.cursor()
-                cursor.execute(
-                    'SELECT * FROM users WHERE username = %s AND active = TRUE', 
-                    (username,)
-                )
-                user = cursor.fetchone()
-                cursor.close()
-            else:
-                user = conn.execute(
-                    'SELECT * FROM users WHERE username = ? AND active = 1', 
-                    (username,)
-                ).fetchone()
-            
-            conn.close()
-            
-            if user and check_password_hash(user['password'], password):
+        user = conn.execute(
+            'SELECT * FROM users WHERE username = ? AND active = 1', (username,)
+        ).fetchone()
+        
+        if user and check_password_hash(user['password'], password):
+            # ADMIN EXCEPTION: Admin users don't need face data
+            if user['role'] == 'admin':
                 # Clear any existing session first
                 session.clear()
                 
-                # Set session data
+                # Set session data for admin
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 session['full_name'] = user['full_name']
-                session['role'] = user.get('role', 'user')
+                session['role'] = user['role']
                 
-                flash('Login berhasil!', 'success')
+                conn.close()
+                flash('Login admin berhasil!', 'success')
                 return redirect(url_for('index'))
-            else:
-                flash('Username atau password salah, atau akun tidak aktif!', 'error')
-                
-        except Exception as e:
-            print(f"Login error: {e}")
+            
+            # For non-admin users, check face data but allow login
+            face_data = conn.execute(
+                'SELECT COUNT(*) as count FROM face_data WHERE user_id = ? AND active = 1',
+                (user['id'],)
+            ).fetchone()
+            
+            # Clear any existing session first
+            session.clear()
+            
+            # Set new session data
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            session['full_name'] = user['full_name']
+            session['role'] = user['role'] if 'role' in user.keys() else 'user'
+            
+            # Set face status in session for later use
+            session['has_face_data'] = face_data['count'] > 0
+            
             conn.close()
-            flash('Error saat login', 'error')
+            
+            if face_data['count'] == 0:
+                # Allow login but show warning about face setup
+                flash('Login berhasil! Namun face recognition belum disetup. Silakan setup di menu profil untuk keamanan absensi.', 'warning')
+            else:
+                flash('Login berhasil!', 'success')
+                
+            return redirect(url_for('index'))
+        else:
+            conn.close()
+            flash('Username atau password salah, atau akun tidak aktif!', 'error')
     
     return render_template('login.html')
 
@@ -2544,46 +2372,55 @@ def index():
         return redirect(url_for('login'))
     
     conn = get_db_connection()
-    try:
-        if DATABASE_URL:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE id = %s', (session['user_id'],))
-            user = cursor.fetchone()
-            cursor.close()
-        else:
-            user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-        
-        # Mock data for now since we don't have attendance table yet
-        attendance = None
-        stats = {'total_days': 0, 'present_days': 0}
-        face_enabled = False
-        
-        conn.close()
-    except Exception as e:
-        print(f"Error loading user data: {e}")
-        conn.close()
-        flash('Error loading user data', 'error')
-        return redirect(url_for('logout'))
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    # Get today's attendance
+    today = datetime.now().strftime("%Y-%m-%d")
+    attendance = conn.execute(
+        'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
+        (session['user_id'], today)
+    ).fetchone()
+    
+    # Get attendance statistics
+    stats = conn.execute(
+        '''SELECT 
+           COUNT(*) as total_days,
+           SUM(CASE WHEN time_in IS NOT NULL THEN 1 ELSE 0 END) as present_days
+           FROM attendance WHERE user_id = ?''',
+        (session['user_id'],)
+    ).fetchone()
+    
+    # Check if user has face recognition enabled
+    face_enabled = conn.execute(
+        'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
+        (session['user_id'],)
+    ).fetchone()[0] > 0
+    
+    # Check if should show face setup reminder
+    show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
+    
+    conn.close()
     
     return render_template('index.html', 
                          user=user, 
                          attendance=attendance, 
                          stats=stats,
                          face_enabled=face_enabled,
-                         show_face_reminder=False,
+                         show_face_reminder=show_face_reminder,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
 if __name__ == '__main__':
+    # Create directories if they don't exist
+    
+    # Initialize web registration
+    if FACE_RECOGNITION_AVAILABLE:
+        init_web_registration(app)
+        print("âœ… Face recognition enabled")
+    else:
+        print("âš ï¸ Face recognition disabled - install required packages")
+    
     # Production-ready settings
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
-    print(f"🚀 Starting Flask app on port {port}")
-    print(f"📊 Debug mode: {debug_mode}")
-    print(f"🗄️ Database URL: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
-    
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
-
-
-
 
