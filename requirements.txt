@@ -10,3 +10,5 @@ opencv-python-headless==4.8.1.78
 psycopg2-binary==2.9.7
 sqlalchemy==2.0.23
 secure-filename==0.1
+psycopg2-binary==2.9.7
+sqlalchemy==2.0.23
