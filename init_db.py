@@ -87,7 +87,7 @@ def init_database():
     ''')
     
     # Create default admin user
-    admin_password = generate_password_hash('admin.admin')
+    admin_password = generate_password_hash('hjtq2$ut%y@7')
     cursor.execute('''
         INSERT OR IGNORE INTO users (username, full_name, email, password, role)
         VALUES (?, ?, ?, ?, ?)
@@ -103,5 +103,6 @@ def init_database():
 
 if __name__ == '__main__':
     init_database()
+
 
 
