@@ -172,7 +172,7 @@ def haversine(lat1, lon1, lat2, lon2):
 @app.route('/absen_masuk', methods=['POST'])
 @login_required
 def absen_masuk():
-    """Clock in endpoint with face verification"""
+    """Clock in endpoint with flexible face verification"""
     try:
         latitude = float(request.form.get('latitude', 0))
         longitude = float(request.form.get('longitude', 0))
@@ -181,7 +181,7 @@ def absen_masuk():
         today = datetime.now().strftime("%Y-%m-%d")
         now = datetime.now().strftime("%H:%M:%S")
 
-        # âœ… Validasi lokasi
+        # Validasi lokasi
         coordinates = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
         in_area = False
         for coord in coordinates:
@@ -194,7 +194,7 @@ def absen_masuk():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda berada di luar area absensi!'})
 
-        # âœ… Cek sudah absen masuk
+        # Cek sudah absen masuk
         existing = conn.execute(
             'SELECT id FROM attendance WHERE user_id = ? AND date = ?',
             (session['user_id'], today)
@@ -204,23 +204,34 @@ def absen_masuk():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda sudah absen hari ini!'})
 
-        # âœ… Face recognition (opsional)
-        face_enabled = conn.execute(
-            'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-            (session['user_id'],)
-        ).fetchone()[0] > 0
+        # Face recognition - ADMIN EXCEPTION & FLEXIBLE FOR USERS
+        user_role = session.get('role', 'user')
+        
+        if user_role == 'admin':
+            # Admin doesn't need face verification
+            face_enabled = False
+            face_verified = True
+            face_message = "Admin - face verification bypassed"
+        else:
+            # Check if user has face data
+            face_enabled = conn.execute(
+                'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
+                (session['user_id'],)
+            ).fetchone()[0] > 0
+            
+            face_verified = False
+            face_message = ""
         
         photo_path = None
-        face_verified, face_message = False, ""
 
-        if 'photo' in request.files:
+        if 'photo' in request.files and request.files['photo'].filename != '':
             file = request.files['photo']
             if file and allowed_file(file.filename):
                 filename = f"{session['user_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                 photo_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(photo_path)
                 
-                if face_enabled and FACE_RECOGNITION_AVAILABLE:
+                if face_enabled and FACE_RECOGNITION_AVAILABLE and user_role != 'admin':
                     face_verified, face_message = verify_face_for_attendance(photo_path, session['user_id'])
                     if not face_verified:
                         if os.path.exists(photo_path):
@@ -229,10 +240,24 @@ def absen_masuk():
                         return jsonify({'success': False, 'message': f'{face_message}'})
                 else:
                     face_verified = True
-                    face_message = "Face recognition disabled or not available"
-        elif face_enabled:
+                    if user_role == 'admin':
+                        face_message = "Admin - photo saved without face verification"
+                    elif not face_enabled:
+                        face_message = "Photo saved - face recognition not setup"
+                    else:
+                        face_message = "Face recognition disabled or not available"
+        elif face_enabled and user_role != 'admin':
+            # Only require photo if user has face data setup
             conn.close()
             return jsonify({'success': False, 'message': 'Foto wajah diperlukan untuk verifikasi identitas'})
+        elif not face_enabled and user_role != 'admin':
+            # User doesn't have face data setup - allow but warn
+            face_verified = True
+            face_message = "Absen berhasil - setup face recognition di profil untuk keamanan"
+        else:
+            # Admin case
+            face_verified = True
+            face_message = "Admin access"
         
         conn.execute(
             '''INSERT INTO attendance (user_id, date, time_in, latitude, longitude, photo_path)
@@ -251,20 +276,18 @@ def absen_masuk():
         conn.close()
         
         success_message = 'Absen masuk berhasil!'
-        if face_verified and face_message:
+        if face_message:
             success_message += f' {face_message}'
         
         return jsonify({'success': True, 'message': success_message})
         
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-
-    
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})    
     
 @app.route('/absen_keluar', methods=['POST'])
 @login_required  
 def absen_keluar():
-    """Clock out endpoint with admin face verification exception"""
+    """Clock out endpoint with flexible face verification"""
     try:
         latitude = float(request.form.get('latitude', 0))
         longitude = float(request.form.get('longitude', 0))
@@ -300,7 +323,7 @@ def absen_keluar():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda berada di luar area absensi!'})
 
-        # Face recognition - ADMIN EXCEPTION
+        # Face recognition - ADMIN EXCEPTION & FLEXIBLE FOR USERS
         user_role = session.get('role', 'user')
         
         if user_role == 'admin':
@@ -309,11 +332,12 @@ def absen_keluar():
             face_verified = True
             face_message = "Admin - face verification bypassed"
         else:
-            # Regular users need face verification
+            # Check if user has face data
             face_enabled = conn.execute(
                 'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
                 (session['user_id'],)
             ).fetchone()[0] > 0
+            
             face_verified = False
             face_message = ""
         
@@ -337,15 +361,22 @@ def absen_keluar():
                     face_verified = True
                     if user_role == 'admin':
                         face_message = "Admin - photo saved without face verification"
+                    elif not face_enabled:
+                        face_message = "Photo saved - face recognition not setup"
                     else:
                         face_message = "Face recognition disabled or not available"
         elif face_enabled and user_role != 'admin':
+            # Only require photo if user has face data setup
             conn.close()
             return jsonify({'success': False, 'message': 'Foto wajah diperlukan untuk verifikasi identitas'})
-        else:
-            # Admin or face not enabled
+        elif not face_enabled and user_role != 'admin':
+            # User doesn't have face data setup - allow but warn
             face_verified = True
-            face_message = "Admin access or face verification disabled"
+            face_message = "Absen berhasil - setup face recognition di profil untuk keamanan"
+        else:
+            # Admin case
+            face_verified = True
+            face_message = "Admin access"
 
         # Update record attendance
         conn.execute(
@@ -364,14 +395,13 @@ def absen_keluar():
         conn.close()
 
         success_message = 'Absen keluar berhasil!'
-        if face_verified and face_message:
+        if face_message:
             success_message += f' {face_message}'
 
         return jsonify({'success': True, 'message': success_message})
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-    
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})    
     
     
 @app.route('/debug/set_admin/admin')
@@ -1796,7 +1826,7 @@ def api_check_username():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page with admin exception for face data"""
+    """Login page with flexible face data requirements"""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -1822,16 +1852,11 @@ def login():
                 flash('Login admin berhasil!', 'success')
                 return redirect(url_for('index'))
             
-            # For non-admin users, check face data requirement
+            # For non-admin users, check face data but allow login
             face_data = conn.execute(
                 'SELECT COUNT(*) as count FROM face_data WHERE user_id = ? AND active = 1',
                 (user['id'],)
             ).fetchone()
-            
-            if face_data['count'] == 0:
-                conn.close()
-                flash('Akun Anda belum memiliki data wajah. Silakan hubungi administrator atau registrasi ulang.', 'warning')
-                return render_template('login.html')
             
             # Clear any existing session first
             session.clear()
@@ -1842,15 +1867,23 @@ def login():
             session['full_name'] = user['full_name']
             session['role'] = user['role'] if 'role' in user.keys() else 'user'
             
+            # Set face status in session for later use
+            session['has_face_data'] = face_data['count'] > 0
+            
             conn.close()
-            flash('Login berhasil!', 'success')
+            
+            if face_data['count'] == 0:
+                # Allow login but show warning about face setup
+                flash('Login berhasil! Namun face recognition belum disetup. Silakan setup di menu profil untuk keamanan absensi.', 'warning')
+            else:
+                flash('Login berhasil!', 'success')
+                
             return redirect(url_for('index'))
         else:
             conn.close()
             flash('Username atau password salah, atau akun tidak aktif!', 'error')
     
     return render_template('login.html')
-
 
 @app.route('/api/set_face_reminder', methods=['POST'])
 @login_required
@@ -2390,3 +2423,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
