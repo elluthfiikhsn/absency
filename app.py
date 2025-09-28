@@ -46,6 +46,13 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yan
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['FACES_FOLDER'] = 'faces'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config.update(
+    SESSION_COOKIE_SECURE=True,  # Only for HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
+)
+
 
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -2262,6 +2269,50 @@ def index():
         flash('An error occurred. Please login again.', 'error')
         return redirect(url_for('login'))
 
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """Admin dashboard"""
+    if session.get('role') != 'admin':
+        flash('Access denied. Admin only.', 'error')
+        return redirect(url_for('index'))
+    
+    # Admin dashboard logic here
+    return render_template('admin_dashboard.html')
+
+
+@app.before_request
+def validate_session():
+    """Validate session before each request"""
+    # Skip validation for static files and auth routes
+    if request.endpoint in ['static', 'login', 'register'] or request.path.startswith('/static/'):
+        return
+    
+    # If user claims to be logged in but session is invalid
+    if 'user_id' in session:
+        try:
+            conn = get_db_connection()
+            user = conn.execute('SELECT active FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            conn.close()
+            
+            # If user doesn't exist or is inactive, clear session
+            if not user or not user['active']:
+                session.clear()
+                if request.endpoint != 'login':
+                    return redirect(url_for('login'))
+        except:
+            # If database error, clear session to be safe
+            session.clear()
+            if request.endpoint != 'login':
+                return redirect(url_for('login'))
+
+@app.route('/debug/clear_session')
+def clear_session():
+    session.clear()
+    return "Session cleared. <a href='/'>Go to home</a>"
+
+
 if __name__ == '__main__':
     # Create directories if they don't exist
     
@@ -2277,6 +2328,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
