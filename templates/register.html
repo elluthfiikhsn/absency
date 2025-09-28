@@ -103,6 +103,83 @@
         .username-feedback {
             font-size: 0.875rem;
             margin-top: 0.25rem;
+
+        }
+
+        /* Face Recognition Card - Fix color conflicts */
+        .face-recognition-card {
+            background: rgba(102, 126, 234, 0.1) !important;
+            border: 1px solid rgba(102, 126, 234, 0.2) !important;
+            border-radius: 15px;
+        }
+
+        .face-recognition-card .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border: none !important;
+            border-radius: 15px 15px 0 0 !important;
+            color: white !important;
+        }
+
+        .face-recognition-card .card-body {
+            background: white !important;
+            color: #333 !important;
+            border-radius: 0 0 15px 15px;
+        }
+
+        /* Camera preview styling */
+        .camera-preview {
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        #camera-placeholder {
+            background: rgba(102, 126, 234, 0.1) !important;
+            border: 2px dashed #667eea !important;
+            color: #667eea !important;
+        }
+
+        /* Button styling fixes */
+        .btn-camera {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-camera:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+
+        .btn-camera:disabled {
+            background: #6c757d;
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Info alert styling */
+        .face-info-alert {
+            background: rgba(102, 126, 234, 0.1) !important;
+            border: 1px solid rgba(102, 126, 234, 0.2) !important;
+            color: #667eea !important;
+            border-radius: 10px;
+        }
+
+        /* File input styling */
+        .face-file-input {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 8px;
+            background: white;
+        }
+
+        .face-file-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         }
     </style>
 </head>
@@ -193,43 +270,43 @@
                             </div>
                             <!-- Face Recognition Setup (Optional) -->
                             <div class="mb-4">
-                                <div class="card"
-                                    style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
-                                    <div class="card-header bg-transparent border-0">
-                                        <h6 class="mb-0 text-white">
+                                <div class="card face-recognition-card">
+                                    <div class="card-header">
+                                        <h6 class="mb-1">
                                             <i class="fas fa-face-smile me-2"></i>
                                             Setup Face Recognition (Opsional)
                                         </h6>
-                                        <small class="text-white-50">Untuk keamanan tambahan saat absensi</small>
+                                        <small class="opacity-75">Untuk keamanan tambahan saat absensi</small>
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="text-center mb-3">
+                                            <div class="col-md-6 mb-3">
+                                                <div class="text-center">
                                                     <video id="camera" class="camera-preview" autoplay muted
-                                                        style="display: none; width: 100%; max-width: 250px; height: 180px; border-radius: 10px;"></video>
+                                                        style="display: none; width: 100%; max-width: 250px; height: 180px;"></video>
                                                     <canvas id="canvas" style="display: none;"></canvas>
                                                     <div id="camera-placeholder"
-                                                        style="width: 100%; max-width: 250px; height: 180px; background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.3); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                                                        <i class="fas fa-camera fa-2x text-white-50 mb-2"></i>
-                                                        <div class="text-white-50 small">Camera Preview</div>
+                                                        style="width: 100%; max-width: 250px; height: 180px; display: flex; align-items: center; justify-content: center; flex-direction: column; margin: 0 auto;">
+                                                        <i class="fas fa-camera fa-2x mb-2"></i>
+                                                        <div class="small">Camera Preview</div>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="d-grid gap-2">
-                                                    <button type="button" class="btn btn-outline-light btn-sm"
+                                                    <button type="button" class="btn btn-camera btn-sm"
                                                         onclick="startCamera()">
                                                         <i class="fas fa-video me-1"></i>Aktifkan Kamera
                                                     </button>
-                                                    <button type="button" class="btn btn-outline-success btn-sm"
+                                                    <button type="button" class="btn btn-camera btn-sm"
                                                         onclick="capturePhoto()" id="captureBtn" disabled>
                                                         <i class="fas fa-camera me-1"></i>Ambil Foto
                                                     </button>
                                                     <div class="mt-2">
-                                                        <label for="face_image" class="form-label small text-white">Atau
-                                                            upload foto:</label>
-                                                        <input type="file" class="form-control form-control-sm"
+                                                        <label for="face_image" class="form-label small">Atau upload
+                                                            foto:</label>
+                                                        <input type="file"
+                                                            class="form-control form-control-sm face-file-input"
                                                             id="face_image" name="face_image" accept="image/*">
                                                     </div>
                                                 </div>
@@ -237,8 +314,7 @@
                                         </div>
 
                                         <div class="mt-3">
-                                            <div class="alert alert-info"
-                                                style="background: rgba(23,162,184,0.2); border: 1px solid rgba(23,162,184,0.3); color: #17a2b8;">
+                                            <div class="alert face-info-alert">
                                                 <small>
                                                     <i class="fas fa-info-circle me-1"></i>
                                                     <strong>Tips:</strong> Pastikan wajah terlihat jelas, pencahayaan
