@@ -16,97 +16,16 @@ import tempfile
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
-FACE_RECOGNITION_ERROR = ""
-
 try:
     import cv2
-    print("✓ OpenCV imported successfully")
-    
     import face_recognition
-    print("✓ Face recognition imported successfully")
-    
     import numpy as np
     import json
-    
-    # Test basic functionality
-    test_array = np.zeros((100, 100, 3), dtype=np.uint8)
-    encodings = face_recognition.face_encodings(test_array)
-    print("✓ Face recognition test successful")
-    
     FACE_RECOGNITION_AVAILABLE = True
-    print("✓ Face recognition libraries loaded successfully")
-    
-except ImportError as e:
-    FACE_RECOGNITION_ERROR = f"Import error: {str(e)}"
-    print(f"⚠️ Warning: Face recognition libraries not available - {FACE_RECOGNITION_ERROR}")
+    print("Face recognition libraries loaded successfully")
+except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
-    
-except Exception as e:
-    FACE_RECOGNITION_ERROR = f"Runtime error: {str(e)}"
-    print(f"⚠️ Warning: Face recognition test failed - {FACE_RECOGNITION_ERROR}")
-    FACE_RECOGNITION_AVAILABLE = False
-
-# Tambahkan route debug untuk troubleshooting
-@app.route('/debug/face-recognition')
-def debug_face_recognition():
-    """Debug face recognition status"""
-    debug_info = {
-        'face_recognition_available': FACE_RECOGNITION_AVAILABLE,
-        'error_message': FACE_RECOGNITION_ERROR,
-        'python_version': sys.version,
-        'platform': platform.platform(),
-    }
-    
-    try:
-        import cv2
-        debug_info['opencv_version'] = cv2.__version__
-    except:
-        debug_info['opencv_version'] = 'Not available'
-    
-    try:
-        import face_recognition
-        debug_info['face_recognition_version'] = face_recognition.__version__ if hasattr(face_recognition, '__version__') else 'Unknown'
-    except:
-        debug_info['face_recognition_version'] = 'Not available'
-    
-    try:
-        import numpy as np
-        debug_info['numpy_version'] = np.__version__
-    except:
-        debug_info['numpy_version'] = 'Not available'
-    
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Face Recognition Debug</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; }}
-            .success {{ color: green; }}
-            .error {{ color: red; }}
-            .warning {{ color: orange; }}
-            pre {{ background: #f5f5f5; padding: 15px; border-radius: 5px; }}
-        </style>
-    </head>
-    <body>
-        <h1>Face Recognition Debug Info</h1>
-        <h2>Status: <span class="{'success' if FACE_RECOGNITION_AVAILABLE else 'error'}">
-            {'✓ Available' if FACE_RECOGNITION_AVAILABLE else '✗ Not Available'}
-        </span></h2>
-        
-        <h3>Details:</h3>
-        <pre>{json.dumps(debug_info, indent=2)}</pre>
-        
-        <h3>Troubleshooting:</h3>
-        <ul>
-            <li>Pastikan semua dependencies di requirements.txt terinstall</li>
-            <li>Railway mungkin memerlukan system packages tambahan</li>
-            <li>Cek Railway build logs untuk error messages</li>
-            <li>Gunakan upload foto sebagai alternatif</li>
-        </ul>
-    </body>
-    </html>
-    """
+    print("Warning: Face recognition libraries not available in this environment")
 
 # Import custom modules
 from register_web import init_web_registration
@@ -262,7 +181,7 @@ def absen_masuk():
         today = datetime.now().strftime("%Y-%m-%d")
         now = datetime.now().strftime("%H:%M:%S")
 
-        # ✅ Validasi lokasi
+        # âœ… Validasi lokasi
         coordinates = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
         in_area = False
         for coord in coordinates:
@@ -275,7 +194,7 @@ def absen_masuk():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda berada di luar area absensi!'})
 
-        # ✅ Cek sudah absen masuk
+        # âœ… Cek sudah absen masuk
         existing = conn.execute(
             'SELECT id FROM attendance WHERE user_id = ? AND date = ?',
             (session['user_id'], today)
@@ -285,7 +204,7 @@ def absen_masuk():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda sudah absen hari ini!'})
 
-        # ✅ Face recognition (opsional)
+        # âœ… Face recognition (opsional)
         face_enabled = conn.execute(
             'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
             (session['user_id'],)
@@ -354,7 +273,7 @@ def absen_keluar():
         today = datetime.now().strftime("%Y-%m-%d")
         now = datetime.now().strftime("%H:%M:%S")
 
-        # ✅ Cek sudah absen masuk
+        # âœ… Cek sudah absen masuk
         attendance = conn.execute(
             'SELECT id, time_out FROM attendance WHERE user_id = ? AND date = ?',
             (session['user_id'], today)
@@ -368,7 +287,7 @@ def absen_keluar():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda sudah absen keluar hari ini!'})
 
-        # ✅ Validasi lokasi (sama kayak absen masuk)
+        # âœ… Validasi lokasi (sama kayak absen masuk)
         coordinates = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
         in_area = False
         for coord in coordinates:
@@ -381,7 +300,7 @@ def absen_keluar():
             conn.close()
             return jsonify({'success': False, 'message': 'Anda berada di luar area absensi!'})
 
-        # ✅ TAMBAHAN: Face recognition verification (sama seperti absen masuk)
+        # âœ… TAMBAHAN: Face recognition verification (sama seperti absen masuk)
         face_enabled = conn.execute(
             'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
             (session['user_id'],)
@@ -411,7 +330,7 @@ def absen_keluar():
             conn.close()
             return jsonify({'success': False, 'message': 'Foto wajah diperlukan untuk verifikasi identitas'})
 
-        # ✅ Update record attendance
+        # âœ… Update record attendance
         conn.execute(
             'UPDATE attendance SET time_out = ?, latitude_out = ?, longitude_out = ?, photo_path_out = ? WHERE id = ?',
             (now, latitude, longitude, photo_path, attendance['id'])
@@ -536,7 +455,7 @@ def delete_coordinate():
     
     try:
         coordinate_id = request.form.get('id')
-        print(f"🔍 DEBUG: Attempting to delete coordinate ID: {coordinate_id}")
+        print(f"ðŸ” DEBUG: Attempting to delete coordinate ID: {coordinate_id}")
         
         if not coordinate_id:
             return jsonify({'success': False, 'message': 'ID koordinat tidak ditemukan'}), 400
@@ -555,7 +474,7 @@ def delete_coordinate():
             return jsonify({'success': False, 'message': 'Koordinat tidak ditemukan'}), 404
         
         coordinate_name = coordinate['name']
-        print(f"✅ DEBUG: Found coordinate: {coordinate_name}")
+        print(f"âœ… DEBUG: Found coordinate: {coordinate_name}")
         
         # Delete the coordinate with explicit transaction
         conn.execute('BEGIN IMMEDIATE')
@@ -567,7 +486,7 @@ def delete_coordinate():
             if deleted_rows > 0:
                 # Force commit
                 conn.commit()
-                print(f"💾 DEBUG: Successfully deleted {deleted_rows} row(s)")
+                print(f"ðŸ’¾ DEBUG: Successfully deleted {deleted_rows} row(s)")
                 
                 # Double-check deletion was successful
                 check = conn.execute('SELECT COUNT(*) as count FROM coordinates WHERE id = ?', (coordinate_id,)).fetchone()
@@ -592,14 +511,14 @@ def delete_coordinate():
         except Exception as transaction_error:
             conn.rollback()
             conn.close()
-            print(f"💥 DEBUG: Transaction error: {str(transaction_error)}")
+            print(f"ðŸ’¥ DEBUG: Transaction error: {str(transaction_error)}")
             raise transaction_error
             
     except Exception as e:
-        print(f"💥 DEBUG: Exception occurred: {str(e)}")
-        print(f"📋 DEBUG: Exception type: {type(e).__name__}")
+        print(f"ðŸ’¥ DEBUG: Exception occurred: {str(e)}")
+        print(f"ðŸ“‹ DEBUG: Exception type: {type(e).__name__}")
         import traceback
-        print(f"🔥 DEBUG: Traceback: {traceback.format_exc()}")
+        print(f"ðŸ”¥ DEBUG: Traceback: {traceback.format_exc()}")
         
         if 'conn' in locals():
             try:
@@ -664,10 +583,10 @@ def set_coordinat():
             }
             coordinates.append(coord_dict)
             
-        print(f"🔍 DEBUG: Loaded {len(coordinates)} coordinates from database")
+        print(f"ðŸ” DEBUG: Loaded {len(coordinates)} coordinates from database")
         
     except Exception as e:
-        print(f"💥 DEBUG: Error loading coordinates: {e}")
+        print(f"ðŸ’¥ DEBUG: Error loading coordinates: {e}")
         coordinates = []
     finally:
         conn.close()
@@ -1752,6 +1671,7 @@ def process_face_registration(face_file, user_id, full_name):
             pass
         return False, f"Error memproses foto wajah: {str(e)}"
 
+
 # API untuk check username availability
 @app.route('/api/check_username', methods=['POST'])
 def api_check_username():
@@ -2207,7 +2127,9 @@ def export_monthly_attendance_excel():
 @app.route('/setup_face', methods=['POST'])
 @login_required
 def setup_face():
-    """Setup face recognition for user - dengan fallback"""
+    """Setup face recognition for user"""
+    if not FACE_RECOGNITION_AVAILABLE:
+        return jsonify({'success': False, 'message': 'Face recognition not available'})
     
     if 'face_image' not in request.files:
         return jsonify({'success': False, 'message': 'No face image provided'})
@@ -2233,68 +2155,40 @@ def setup_face():
         image_path = os.path.join(user_folder, filename)
         face_file.save(image_path)
         
-        if FACE_RECOGNITION_AVAILABLE:
-            # Full face recognition processing
-            image = face_recognition.load_image_file(image_path)
-            face_encodings = face_recognition.face_encodings(image)
-            
-            if not face_encodings:
-                os.remove(image_path)
-                conn.close()
-                return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
-            
-            if len(face_encodings) > 1:
-                os.remove(image_path)
-                conn.close()
-                return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
-            
-            # Get the face encoding
-            face_encoding = face_encodings[0]
-            encoding_json = json.dumps(face_encoding.tolist())
-            
-            # Deactivate old face data
-            conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-            
-            # Save new encoding to database
-            conn.execute('''
-                INSERT INTO face_data (user_id, face_encoding, photo_path, active)
-                VALUES (?, ?, ?, 1)
-            ''', (session['user_id'], encoding_json, image_path))
-            
-            conn.commit()
+        # Process with face_recognition
+        image = face_recognition.load_image_file(image_path)
+        face_encodings = face_recognition.face_encodings(image)
+        
+        if not face_encodings:
+            os.remove(image_path)
             conn.close()
-            
-            return jsonify({'success': True, 'message': 'Face recognition berhasil disetup dengan AI processing!'})
-            
-        else:
-            # Fallback: Save image without face recognition processing
-            # Deactivate old face data
-            conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-            
-            # Save image path only (no encoding)
-            conn.execute('''
-                INSERT INTO face_data (user_id, photo_path, active)
-                VALUES (?, ?, 1)
-            ''', (session['user_id'], image_path))
-            
-            conn.commit()
+            return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
+        
+        if len(face_encodings) > 1:
+            os.remove(image_path)
             conn.close()
-            
-            return jsonify({
-                'success': True, 
-                'message': f'Foto wajah berhasil disimpan! (Face recognition processing tidak tersedia: {FACE_RECOGNITION_ERROR})'
-            })
+            return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
+        
+        # Get the face encoding
+        face_encoding = face_encodings[0]
+        encoding_json = json.dumps(face_encoding.tolist())
+        
+        # Deactivate old face data
+        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
+        
+        # Save new encoding to database
+        conn.execute('''
+            INSERT INTO face_data (user_id, face_encoding, photo_path, active)
+            VALUES (?, ?, ?, 1)
+        ''', (session['user_id'], encoding_json, image_path))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Face recognition berhasil disetup!'})
         
     except Exception as e:
-        # Clean up file if error
-        if 'image_path' in locals() and os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-            except:
-                pass
-                
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-
 
 
 @app.route('/remove_face', methods=['POST'])
@@ -2327,34 +2221,6 @@ def remove_face():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-    
-    
-@app.route('/debug/camera', methods=['GET'])
-def debug_camera():
-    """Debug camera capabilities"""
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Camera Debug</title>
-    </head>
-    <body>
-        <h2>Camera Debug Info</h2>
-        <div id="info"></div>
-        <script>
-            const info = [];
-            info.push('Protocol: ' + location.protocol);
-            info.push('Host: ' + location.host);
-            info.push('HTTPS: ' + (location.protocol === 'https:'));
-            info.push('Navigator.mediaDevices: ' + !!navigator.mediaDevices);
-            info.push('getUserMedia: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
-            info.push('User Agent: ' + navigator.userAgent);
-            
-            document.getElementById('info').innerHTML = info.join('<br>');
-        </script>
-    </body>
-    </html>
-    """
 
 @app.route('/')
 def index():
@@ -2406,23 +2272,11 @@ if __name__ == '__main__':
     # Initialize web registration
     if FACE_RECOGNITION_AVAILABLE:
         init_web_registration(app)
-        print("✅ Face recognition enabled")
+        print("âœ… Face recognition enabled")
     else:
-        print("⚠️ Face recognition disabled - install required packages")
+        print("âš ï¸ Face recognition disabled - install required packages")
     
     # Production-ready settings
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
-    
-
-
-
-
-
-
-
-
-
-
-
