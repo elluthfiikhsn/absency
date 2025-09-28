@@ -1545,7 +1545,7 @@ def api_weekly_attendance():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """User registration page with flexible face recognition setup"""
+    """User registration page with FLEXIBLE face recognition setup"""
     if request.method == 'POST':
         username = request.form.get('username')
         full_name = request.form.get('full_name')
@@ -1575,18 +1575,24 @@ def register():
             flash('Password harus mengandung huruf dan angka!', 'error')
             return render_template('register.html')
         
-        # Check face image - MADE FLEXIBLE FOR TESTING
+        # TEMPORARY: Make face image optional for testing
         face_file = None
-        face_required = True  # Set to False for testing without face
+        face_required = False  # Set to True when ready to enforce
+        
+        print(f"DEBUG: Received files: {list(request.files.keys())}")
         
         if 'face_image' in request.files and request.files['face_image'].filename != '':
             face_file = request.files['face_image']
+            print(f"DEBUG: Face file received: {face_file.filename}, size: {face_file.content_length}")
+            
             if not allowed_file(face_file.filename):
                 flash('Format file foto tidak valid! Gunakan JPG, PNG, atau JPEG.', 'error')
                 return render_template('register.html')
         elif face_required:
             flash('Foto wajah WAJIB diupload untuk registrasi!', 'error')
             return render_template('register.html')
+        else:
+            print("DEBUG: No face file provided, but not required")
         
         conn = get_db_connection()
         
@@ -1613,31 +1619,38 @@ def register():
             user_id = cursor.lastrowid
             conn.commit()
             
+            print(f"DEBUG: User created with ID: {user_id}")
+            
             # Process face image if provided
             face_message = ""
             if face_file:
+                print("DEBUG: Processing face file...")
                 face_setup_success, face_message = process_face_registration(face_file, user_id, full_name)
                 
-                if not face_setup_success:
-                    # Log the error but don't fail registration
-                    print(f"Face processing failed for user {user_id}: {face_message}")
-                    face_message = "Registrasi berhasil! (Face recognition akan disetup nanti)"
-                else:
+                if face_setup_success:
                     face_message = f"Registrasi berhasil! {face_message}"
+                else:
+                    # Log the error but don't fail registration
+                    print(f"DEBUG: Face processing failed: {face_message}")
+                    face_message = "Registrasi berhasil! (Face recognition setup gagal, bisa disetup nanti)"
             else:
                 face_message = "Registrasi berhasil! Face recognition dapat disetup nanti di profil."
             
             conn.close()
+            
+            print(f"DEBUG: Registration successful: {face_message}")
             
             # Success message
             flash(face_message, 'success')
             return redirect(url_for('login'))
             
         except Exception as e:
+            print(f"DEBUG: Registration error: {str(e)}")
             # Cleanup on error
             try:
-                conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
-                conn.commit()
+                if 'user_id' in locals():
+                    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+                    conn.commit()
             except:
                 pass
             conn.close()
@@ -1648,43 +1661,47 @@ def register():
 
 
 def process_face_registration(face_file, user_id, full_name):
-    """Process face image during registration - with error handling"""
+    """Process face image during registration - with enhanced error handling"""
     try:
+        print(f"DEBUG: Starting face processing for user {user_id}")
+        
         # Create user-specific folder
         user_folder = os.path.join(app.config['FACES_FOLDER'], f"{full_name}_{user_id}")
         if not os.path.exists(user_folder):
             os.makedirs(user_folder)
+            print(f"DEBUG: Created folder: {user_folder}")
         
         # Save original image
         filename = secure_filename(f"{user_id}_face.jpg")
         image_path = os.path.join(user_folder, filename)
         face_file.save(image_path)
+        print(f"DEBUG: Image saved to: {image_path}")
         
-        # Process with face_recognition if available
+        # Always save to database first (even without encoding)
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO face_data (user_id, photo_path, active)
+            VALUES (?, ?, 1)
+        ''', (user_id, image_path))
+        face_data_id = conn.lastrowid
+        print(f"DEBUG: Face data record created with ID: {face_data_id}")
+        
+        # Try face processing if available
         if FACE_RECOGNITION_AVAILABLE:
             try:
+                print("DEBUG: Attempting face recognition processing...")
                 import face_recognition
                 image = face_recognition.load_image_file(image_path)
                 face_encodings = face_recognition.face_encodings(image)
                 
                 if not face_encodings:
-                    # Keep the file but without encoding
-                    conn = get_db_connection()
-                    conn.execute('''
-                        INSERT INTO face_data (user_id, photo_path, active)
-                        VALUES (?, ?, 1)
-                    ''', (user_id, image_path))
+                    print("DEBUG: No faces detected in image")
                     conn.commit()
                     conn.close()
                     return True, "Foto wajah disimpan (wajah tidak terdeteksi untuk encoding)!"
                 
                 if len(face_encodings) > 1:
-                    # Keep the file but without encoding
-                    conn = get_db_connection()
-                    conn.execute('''
-                        INSERT INTO face_data (user_id, photo_path, active)
-                        VALUES (?, ?, 1)
-                    ''', (user_id, image_path))
+                    print(f"DEBUG: Multiple faces detected: {len(face_encodings)}")
                     conn.commit()
                     conn.close()
                     return True, "Foto wajah disimpan (multiple faces detected, no encoding)!"
@@ -1693,49 +1710,45 @@ def process_face_registration(face_file, user_id, full_name):
                 face_encoding = face_encodings[0]
                 encoding_json = json.dumps(face_encoding.tolist())
                 
-                conn = get_db_connection()
                 conn.execute('''
-                    INSERT INTO face_data (user_id, face_encoding, photo_path, active)
-                    VALUES (?, ?, ?, 1)
-                ''', (user_id, encoding_json, image_path))
+                    UPDATE face_data SET face_encoding = ? WHERE id = ?
+                ''', (encoding_json, face_data_id))
+                
+                print("DEBUG: Face encoding saved successfully")
                 conn.commit()
                 conn.close()
                 
                 return True, "Face recognition berhasil disetup dengan encoding!"
                 
             except Exception as face_error:
-                # Save without encoding on face_recognition error
-                conn = get_db_connection()
-                conn.execute('''
-                    INSERT INTO face_data (user_id, photo_path, active)
-                    VALUES (?, ?, 1)
-                ''', (user_id, image_path))
+                print(f"DEBUG: Face recognition error: {str(face_error)}")
+                # Keep the photo record without encoding
                 conn.commit()
                 conn.close()
-                return True, f"Foto wajah disimpan (face processing error: {str(face_error)})!"
+                return True, f"Foto wajah disimpan (face processing error, bisa diproses nanti)!"
         else:
-            # Save without encoding (untuk environment tanpa face_recognition)
-            conn = get_db_connection()
-            conn.execute('''
-                INSERT INTO face_data (user_id, photo_path, active)
-                VALUES (?, ?, 1)
-            ''', (user_id, image_path))
+            print("DEBUG: Face recognition not available")
+            # Save without encoding
             conn.commit()
             conn.close()
             
             return True, "Foto wajah berhasil disimpan!"
             
     except Exception as e:
-        # Clean up on error but don't fail registration
+        print(f"DEBUG: General error in face processing: {str(e)}")
+        # Try to clean up on error
         try:
             if 'image_path' in locals() and os.path.exists(image_path):
                 os.remove(image_path)
+                print("DEBUG: Cleaned up image file")
             if 'user_folder' in locals() and os.path.exists(user_folder) and not os.listdir(user_folder):
                 os.rmdir(user_folder)
+                print("DEBUG: Cleaned up empty folder")
+            if 'conn' in locals():
+                conn.close()
         except:
             pass
-        return False, f"Error memproses foto wajah: {str(e)}"
-    
+        return False, f"Error memproses foto wajah: {str(e)}"    
     
 @app.route('/debug/test_registration')
 def debug_test_registration():
