@@ -12,18 +12,20 @@ from io import BytesIO
 from flask import send_file
 from datetime import datetime, timedelta
 import tempfile
+import sys
+import platform
 
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
-FACE_RECOGNITION_ERROR = ""
+FACE_RECOGNITION_ERROR = "Library dlib tidak kompatibel dengan Railway hosting"
 
 try:
     import cv2
     print("✓ OpenCV imported successfully")
     
-    import face_recognition
-    print("✓ Face recognition imported successfully")
+    # import face_recognition
+    # print("✓ Face recognition imported successfully")
     
     import numpy as np
     import json
@@ -55,6 +57,7 @@ def debug_face_recognition():
         'error_message': FACE_RECOGNITION_ERROR,
         'python_version': sys.version,
         'platform': platform.platform(),
+        'mode': 'FALLBACK MODE - Photo upload only',
     }
     
     try:
@@ -123,7 +126,7 @@ def init_db_if_needed():
 init_db_if_needed()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
+app.config['SECRET_KEY'] = 'admin.amdin'  # Ganti dengan secret key yang aman
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['FACES_FOLDER'] = 'faces'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -214,10 +217,8 @@ def absensi():
         (session['user_id'], today)
     ).fetchone()
     
-    # Get allowed coordinates - TAMBAHKAN INI!
+    # Get allowed coordinates
     coordinates_rows = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
-    
-    # Convert Row objects to dict untuk JSON serialization
     coordinates = [dict(row) for row in coordinates_rows]
     
     # Check if user has face recognition enabled
@@ -230,7 +231,7 @@ def absensi():
     
     return render_template('absensi.html', 
                          attendance=attendance, 
-                         coordinates=coordinates,  # PASS coordinates ke template
+                         coordinates=coordinates,
                          face_enabled=face_enabled,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
@@ -2184,17 +2185,17 @@ def export_monthly_attendance_excel():
 @app.route('/setup_face', methods=['POST'])
 @login_required
 def setup_face():
-    """Setup face recognition for user - dengan fallback"""
+    """Setup face recognition - Railway fallback mode"""
     
     if 'face_image' not in request.files:
-        return jsonify({'success': False, 'message': 'No face image provided'})
+        return jsonify({'success': False, 'message': 'Tidak ada foto yang diupload'})
     
     face_file = request.files['face_image']
     if face_file.filename == '':
-        return jsonify({'success': False, 'message': 'No file selected'})
+        return jsonify({'success': False, 'message': 'Tidak ada file yang dipilih'})
     
     if not allowed_file(face_file.filename):
-        return jsonify({'success': False, 'message': 'Invalid file format'})
+        return jsonify({'success': False, 'message': 'Format file tidak didukung. Gunakan JPG, PNG, atau GIF'})
     
     try:
         conn = get_db_connection()
@@ -2205,43 +2206,55 @@ def setup_face():
         if not os.path.exists(user_folder):
             os.makedirs(user_folder)
         
-        # Save original image
-        filename = secure_filename(f"{user['id']}_face.jpg")
+        # Save image
+        filename = secure_filename(f"{user['id']}_face_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
         image_path = os.path.join(user_folder, filename)
         face_file.save(image_path)
         
-        if FACE_RECOGNITION_AVAILABLE:
-            # Full face recognition processing
-            image = face_recognition.load_image_file(image_path)
-            face_encodings = face_recognition.face_encodings(image)
-            
-            if not face_encodings:
+        # Simple image validation using OpenCV (jika tersedia)
+        try:
+            if 'cv2' in globals():
+                img = cv2.imread(image_path)
+                if img is None:
+                    os.remove(image_path)
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'File gambar tidak valid atau rusak'})
+                
+                # Optional: Basic image processing
+                height, width = img.shape[:2]
+                if width < 100 or height < 100:
+                    os.remove(image_path)
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'Gambar terlalu kecil. Minimal 100x100 pixel'})
+        except:
+            pass  # Skip validation if OpenCV not available
+        
+        # Deactivate old face data
+        conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
+        
+        # Save image path (no face encoding in fallback mode)
+        conn.execute('''
+            INSERT INTO face_data (user_id, photo_path, active, created_at)
+            VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+        ''', (session['user_id'], image_path))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Foto wajah berhasil disimpan! (Mode manual - tanpa AI processing karena keterbatasan server)'
+        })
+        
+    except Exception as e:
+        # Clean up file if error
+        if 'image_path' in locals() and os.path.exists(image_path):
+            try:
                 os.remove(image_path)
-                conn.close()
-                return jsonify({'success': False, 'message': 'Tidak ada wajah terdeteksi dalam gambar'})
-            
-            if len(face_encodings) > 1:
-                os.remove(image_path)
-                conn.close()
-                return jsonify({'success': False, 'message': 'Terdeteksi lebih dari satu wajah. Gunakan foto dengan satu wajah saja'})
-            
-            # Get the face encoding
-            face_encoding = face_encodings[0]
-            encoding_json = json.dumps(face_encoding.tolist())
-            
-            # Deactivate old face data
-            conn.execute('UPDATE face_data SET active = 0 WHERE user_id = ?', (session['user_id'],))
-            
-            # Save new encoding to database
-            conn.execute('''
-                INSERT INTO face_data (user_id, face_encoding, photo_path, active)
-                VALUES (?, ?, ?, 1)
-            ''', (session['user_id'], encoding_json, image_path))
-            
-            conn.commit()
-            conn.close()
-            
-            return jsonify({'success': True, 'message': 'Face recognition berhasil disetup dengan AI processing!'})
+            except:
+                pass
+                
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
             
         else:
             # Fallback: Save image without face recognition processing
@@ -2304,7 +2317,6 @@ def remove_face():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})
-    
     
 @app.route('/debug/camera', methods=['GET'])
 def debug_camera():
@@ -2392,6 +2404,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
