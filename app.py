@@ -885,6 +885,46 @@ def update_coordinate():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
 
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    conn = get_db_connection()
+    try:
+        if DATABASE_URL:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM users WHERE id = %s', (session['user_id'],))
+            user = cursor.fetchone()
+            cursor.close()
+        else:
+            user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        conn.close()
+        
+        return render_template('profile.html', user=user)
+    except Exception as e:
+        print(f"Error loading profile: {e}")
+        conn.close()
+        flash('Error loading profile', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/test_db')
+def test_db():
+    """Test database connection"""
+    try:
+        conn = get_db_connection()
+        if DATABASE_URL:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) as count FROM users')
+            result = cursor.fetchone()
+            cursor.close()
+        else:
+            result = conn.execute('SELECT COUNT(*) as count FROM users').fetchone()
+        
+        conn.close()
+        return f"Database connection successful! Users count: {result['count']}"
+    except Exception as e:
+        return f"Database connection failed: {str(e)}"
+
 
 @app.route('/logout')
 def logout():
@@ -900,6 +940,22 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('500.html'), 500
+
+# Initialize database and web registration
+try:
+    init_db_if_needed()
+    
+    # Import and initialize web registration
+    from register_web import init_web_registration
+    web_reg = init_web_registration(app)
+    
+    if FACE_RECOGNITION_AVAILABLE:
+        print("✅ Face recognition enabled")
+    else:
+        print("⚠️ Face recognition disabled - install required packages")
+        
+except Exception as e:
+    print(f"❌ Initialization error: {e}")
 
 
 @app.route('/api/attendance/monthly', methods=['GET'])
@@ -1956,62 +2012,48 @@ def api_check_username():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page with flexible face data requirements"""
+    """Login page"""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
         conn = get_db_connection()
-        user = conn.execute(
-            'SELECT * FROM users WHERE username = ? AND active = 1', (username,)
-        ).fetchone()
-        
-        if user and check_password_hash(user['password'], password):
-            # ADMIN EXCEPTION: Admin users don't need face data
-            if user['role'] == 'admin':
+        try:
+            if DATABASE_URL:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'SELECT * FROM users WHERE username = %s AND active = TRUE', 
+                    (username,)
+                )
+                user = cursor.fetchone()
+                cursor.close()
+            else:
+                user = conn.execute(
+                    'SELECT * FROM users WHERE username = ? AND active = 1', 
+                    (username,)
+                ).fetchone()
+            
+            conn.close()
+            
+            if user and check_password_hash(user['password'], password):
                 # Clear any existing session first
                 session.clear()
                 
-                # Set session data for admin
+                # Set session data
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 session['full_name'] = user['full_name']
-                session['role'] = user['role']
+                session['role'] = user.get('role', 'user')
                 
-                conn.close()
-                flash('Login admin berhasil!', 'success')
-                return redirect(url_for('index'))
-            
-            # For non-admin users, check face data but allow login
-            face_data = conn.execute(
-                'SELECT COUNT(*) as count FROM face_data WHERE user_id = ? AND active = 1',
-                (user['id'],)
-            ).fetchone()
-            
-            # Clear any existing session first
-            session.clear()
-            
-            # Set new session data
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['full_name'] = user['full_name']
-            session['role'] = user['role'] if 'role' in user.keys() else 'user'
-            
-            # Set face status in session for later use
-            session['has_face_data'] = face_data['count'] > 0
-            
-            conn.close()
-            
-            if face_data['count'] == 0:
-                # Allow login but show warning about face setup
-                flash('Login berhasil! Namun face recognition belum disetup. Silakan setup di menu profil untuk keamanan absensi.', 'warning')
-            else:
                 flash('Login berhasil!', 'success')
+                return redirect(url_for('index'))
+            else:
+                flash('Username atau password salah, atau akun tidak aktif!', 'error')
                 
-            return redirect(url_for('index'))
-        else:
+        except Exception as e:
+            print(f"Login error: {e}")
             conn.close()
-            flash('Username atau password salah, atau akun tidak aktif!', 'error')
+            flash('Error saat login', 'error')
     
     return render_template('login.html')
 
@@ -2502,57 +2544,46 @@ def index():
         return redirect(url_for('login'))
     
     conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-    
-    # Get today's attendance
-    today = datetime.now().strftime("%Y-%m-%d")
-    attendance = conn.execute(
-        'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
-        (session['user_id'], today)
-    ).fetchone()
-    
-    # Get attendance statistics
-    stats = conn.execute(
-        '''SELECT 
-           COUNT(*) as total_days,
-           SUM(CASE WHEN time_in IS NOT NULL THEN 1 ELSE 0 END) as present_days
-           FROM attendance WHERE user_id = ?''',
-        (session['user_id'],)
-    ).fetchone()
-    
-    # Check if user has face recognition enabled
-    face_enabled = conn.execute(
-        'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-        (session['user_id'],)
-    ).fetchone()[0] > 0
-    
-    # Check if should show face setup reminder
-    show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
-    
-    conn.close()
+    try:
+        if DATABASE_URL:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM users WHERE id = %s', (session['user_id'],))
+            user = cursor.fetchone()
+            cursor.close()
+        else:
+            user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        
+        # Mock data for now since we don't have attendance table yet
+        attendance = None
+        stats = {'total_days': 0, 'present_days': 0}
+        face_enabled = False
+        
+        conn.close()
+    except Exception as e:
+        print(f"Error loading user data: {e}")
+        conn.close()
+        flash('Error loading user data', 'error')
+        return redirect(url_for('logout'))
     
     return render_template('index.html', 
                          user=user, 
                          attendance=attendance, 
                          stats=stats,
                          face_enabled=face_enabled,
-                         show_face_reminder=show_face_reminder,
+                         show_face_reminder=False,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
 if __name__ == '__main__':
-    # Create directories if they don't exist
-    
-    # Initialize web registration
-    if FACE_RECOGNITION_AVAILABLE:
-        init_web_registration(app)
-        print("âœ… Face recognition enabled")
-    else:
-        print("âš ï¸ Face recognition disabled - install required packages")
-    
     # Production-ready settings
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
+    print(f"🚀 Starting Flask app on port {port}")
+    print(f"📊 Debug mode: {debug_mode}")
+    print(f"🗄️ Database URL: {'PostgreSQL' if DATABASE_URL else 'SQLite'}")
+    
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
 
 
 
