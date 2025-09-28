@@ -1698,14 +1698,19 @@ def login():
         
         conn = get_db_connection()
         user = conn.execute(
-            'SELECT * FROM users WHERE username = ?', (username,)
+            'SELECT * FROM users WHERE username = ? AND active = 1', (username,)
         ).fetchone()
         conn.close()
         
         if user and check_password_hash(user['password'], password):
+            # Clear any existing session first
+            session.clear()
+            
+            # Set new session data
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['full_name'] = user['full_name']
+            session['role'] = user['role']  # Add role to session
             
             # Check if user should see face setup reminder
             if session.get('show_face_setup_reminder'):
@@ -1715,11 +1720,9 @@ def login():
             flash('Login berhasil!', 'success')
             return redirect(url_for('index'))
         else:
-            flash('Username atau password salah!', 'error')
+            flash('Username atau password salah, atau akun tidak aktif!', 'error')
     
-    return render_template('login.html')
-
-@app.route('/api/set_face_reminder', methods=['POST'])
+    return render_template('login.html')@app.route('/api/set_face_reminder', methods=['POST'])
 @login_required
 def api_set_face_reminder():
     """API to set face recognition reminder for next login"""
@@ -2201,47 +2204,63 @@ def remove_face():
 
 @app.route('/')
 def index():
-    """Main dashboard page"""
+    """Main dashboard page - redirect to login if not authenticated"""
+    # Check if user is logged in first
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
+    # Check if session data is valid
     conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-    
-    # Get today's attendance
-    today = datetime.now().strftime("%Y-%m-%d")
-    attendance = conn.execute(
-        'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
-        (session['user_id'], today)
-    ).fetchone()
-    
-    # Get attendance statistics
-    stats = conn.execute(
-        '''SELECT 
-           COUNT(*) as total_days,
-           SUM(CASE WHEN time_in IS NOT NULL THEN 1 ELSE 0 END) as present_days
-           FROM attendance WHERE user_id = ?''',
-        (session['user_id'],)
-    ).fetchone()
-    
-    # Check if user has face recognition enabled
-    face_enabled = conn.execute(
-        'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-        (session['user_id'],)
-    ).fetchone()[0] > 0
-    
-    # Check if should show face setup reminder
-    show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
-    
-    conn.close()
-    
-    return render_template('index.html', 
-                         user=user, 
-                         attendance=attendance, 
-                         stats=stats,
-                         face_enabled=face_enabled,
-                         show_face_reminder=show_face_reminder,
-                         face_recognition_available=FACE_RECOGNITION_AVAILABLE)
+    try:
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        
+        # If user doesn't exist in database, clear session
+        if not user:
+            session.clear()
+            conn.close()
+            flash('Session expired. Please login again.', 'warning')
+            return redirect(url_for('login'))
+        
+        # Get today's attendance
+        today = datetime.now().strftime("%Y-%m-%d")
+        attendance = conn.execute(
+            'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
+            (session['user_id'], today)
+        ).fetchone()
+        
+        # Get attendance statistics
+        stats = conn.execute(
+            '''SELECT 
+               COUNT(*) as total_days,
+               SUM(CASE WHEN time_in IS NOT NULL THEN 1 ELSE 0 END) as present_days
+               FROM attendance WHERE user_id = ?''',
+            (session['user_id'],)
+        ).fetchone()
+        
+        # Check if user has face recognition enabled
+        face_enabled = conn.execute(
+            'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
+            (session['user_id'],)
+        ).fetchone()[0] > 0
+        
+        # Check if should show face setup reminder
+        show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
+        
+        conn.close()
+        
+        return render_template('index.html', 
+                             user=user, 
+                             attendance=attendance, 
+                             stats=stats,
+                             face_enabled=face_enabled,
+                             show_face_reminder=show_face_reminder,
+                             face_recognition_available=FACE_RECOGNITION_AVAILABLE)
+                             
+    except Exception as e:
+        conn.close()
+        session.clear()  # Clear potentially corrupted session
+        flash('An error occurred. Please login again.', 'error')
+        return redirect(url_for('login'))
 
 if __name__ == '__main__':
     # Create directories if they don't exist
@@ -2258,6 +2277,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
