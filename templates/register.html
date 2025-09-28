@@ -427,12 +427,11 @@
                     placeholder.style.display = 'none';
 
                     document.getElementById('captureBtn').disabled = false;
-
                     console.log('Camera started successfully');
                 })
                 .catch(function (err) {
                     console.log("Error accessing camera: " + err);
-                    showFaceValidation("Error mengakses kamera. Silakan upload foto secara manual.", 'warning');
+                    alert("Error mengakses kamera. Silakan upload foto secara manual.");
                 });
         }
 
@@ -468,14 +467,7 @@
                 dataTransfer.items.add(file);
                 document.getElementById('face_image').files = dataTransfer.files;
 
-                // Remove validation error if exists
-                hideFaceValidation();
-                document.getElementById('face_image').classList.remove('is-invalid');
-
-                showFaceValidation("Foto wajah berhasil diambil!", 'success');
-
                 console.log('Photo captured and file input updated');
-
             }, 'image/jpeg', 0.8);
         }
 
@@ -499,7 +491,6 @@
             document.getElementById('face_image').value = '';
             capturedImageBlob = null;
 
-            hideFaceValidation();
             console.log('Photo retaken, inputs cleared');
         }
 
@@ -511,16 +502,16 @@
                 const file = e.target.files[0];
                 console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
-                // Validate file type
+                // Basic file validation
                 if (!file.type.startsWith('image/')) {
-                    showFaceValidation("File yang dipilih bukan gambar yang valid.", 'danger');
+                    alert("File yang dipilih bukan gambar yang valid.");
                     this.value = '';
                     return;
                 }
 
-                // Validate file size (max 5MB)
+                // File size validation (max 5MB)
                 if (file.size > 5 * 1024 * 1024) {
-                    showFaceValidation("Ukuran file terlalu besar. Maksimal 5MB.", 'danger');
+                    alert("Ukuran file terlalu besar. Maksimal 5MB.");
                     this.value = '';
                     return;
                 }
@@ -545,64 +536,35 @@
                     preview.remove();
                 }
 
-                // Remove validation classes and show success
-                this.classList.remove('is-invalid');
-                showFaceValidation("File foto berhasil dipilih: " + file.name, 'success');
-
                 console.log('File validation passed, ready for submission');
-            } else {
-                console.log('No file selected');
+
+                // Remove any error styling
+                this.classList.remove('is-invalid');
+
+                // Show success feedback
+                const successMsg = document.createElement('div');
+                successMsg.className = 'alert alert-success mt-2';
+                successMsg.innerHTML = `<i class="fas fa-check me-1"></i>File foto berhasil dipilih: ${file.name}`;
+                successMsg.style.fontSize = '0.875rem';
+
+                // Remove any existing success message
+                const existingMsg = this.parentNode.querySelector('.alert');
+                if (existingMsg) {
+                    existingMsg.remove();
+                }
+
+                this.parentNode.appendChild(successMsg);
+
+                // Auto remove success message
+                setTimeout(() => {
+                    if (successMsg) {
+                        successMsg.remove();
+                    }
+                }, 3000);
             }
         });
 
-        // Validation helper functions
-        function showFaceValidation(message, type) {
-            const validationDiv = document.getElementById('face-validation');
-            const messageSpan = document.getElementById('face-validation-message');
-
-            if (!validationDiv || !messageSpan) {
-                console.log('Validation elements not found, using alert instead');
-                if (type === 'danger') {
-                    alert(message);
-                }
-                return;
-            }
-
-            messageSpan.textContent = message;
-            validationDiv.style.display = 'block';
-
-            // Remove existing classes
-            const alertDiv = validationDiv.querySelector('.alert');
-            alertDiv.className = 'alert';
-
-            // Add appropriate class based on type
-            switch (type) {
-                case 'success':
-                    alertDiv.classList.add('alert-success');
-                    // Auto hide success messages after 3 seconds
-                    setTimeout(() => hideFaceValidation(), 3000);
-                    break;
-                case 'danger':
-                    alertDiv.classList.add('alert-danger');
-                    break;
-                case 'warning':
-                    alertDiv.classList.add('alert-warning');
-                    break;
-                default:
-                    alertDiv.classList.add('alert-info');
-            }
-
-            console.log('Face validation shown:', message, type);
-        }
-
-        function hideFaceValidation() {
-            const validationDiv = document.getElementById('face-validation');
-            if (validationDiv) {
-                validationDiv.style.display = 'none';
-            }
-        }
-
-        // FIXED Form submission validation
+        // SIMPLIFIED Form submission - TEMPORARILY REMOVE FACE VALIDATION
         document.getElementById('registerForm').addEventListener('submit', function (e) {
             console.log('Form submission started');
 
@@ -610,7 +572,7 @@
             const confirmPassword = document.getElementById('confirm_password').value;
             const faceInput = document.getElementById('face_image');
 
-            // Check password match
+            // Only check password match
             if (password !== confirmPassword) {
                 e.preventDefault();
                 alert('Password dan konfirmasi password tidak cocok!');
@@ -618,33 +580,14 @@
                 return;
             }
 
-            // Debug face input
-            console.log('Face input files:', faceInput.files.length);
-            console.log('Face input value:', faceInput.value);
-
-            // Check face image requirement - FIXED LOGIC
-            if (!faceInput.files || faceInput.files.length === 0) {
-                e.preventDefault();
-                faceInput.classList.add('is-invalid');
-
-                // Show validation message
-                showFaceValidation('Foto wajah WAJIB diupload untuk registrasi!', 'danger');
-
-                // Also show browser alert for immediate feedback
-                alert('Foto wajah WAJIB diupload untuk registrasi!');
-
-                // Scroll to face section
-                document.querySelector('.face-recognition-card').scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-
-                console.log('Form blocked: No face image uploaded');
-                return;
+            // DEBUG: Log face input status
+            console.log('Face input files count:', faceInput.files.length);
+            if (faceInput.files.length > 0) {
+                console.log('Face file:', faceInput.files[0].name, faceInput.files[0].size);
             }
 
-            // If we reach here, validation passed
-            console.log('Form validation passed, submitting...');
+            // TEMPORARY: Allow submission without face validation
+            console.log('TEMPORARY: Allowing submission without strict face validation');
 
             // Show loading state
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -660,6 +603,8 @@
                     console.log('Submit button re-enabled (timeout)');
                 }
             }, 15000);
+
+            console.log('Form validation passed, submitting...');
         });
 
         // Stop camera when page unloads
@@ -673,22 +618,6 @@
         document.addEventListener('DOMContentLoaded', function () {
             console.log('Registration page loaded');
             console.log('Face input element:', document.getElementById('face_image'));
-            console.log('Face validation element:', document.getElementById('face-validation'));
-
-            // Make sure the face input shows as required
-            const faceInput = document.getElementById('face_image');
-            if (faceInput) {
-                faceInput.setAttribute('required', 'true');
-                console.log('Face input marked as required');
-            }
-        });
-
-        // Additional debugging
-        document.getElementById('face_image').addEventListener('invalid', function (e) {
-            console.log('Face input invalid event triggered');
-            e.preventDefault();
-            this.classList.add('is-invalid');
-            showFaceValidation('Foto wajah wajib diupload!', 'danger');
         });
     </script>
 </body>
