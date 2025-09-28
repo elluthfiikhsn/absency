@@ -269,14 +269,18 @@
                                 <div id="password-match" class="mt-1"></div>
                             </div>
                             <!-- Face Recognition Setup (Optional) -->
+                            <!-- Replace your Face Recognition section in register.html with this mandatory version: -->
+
+                            <!-- Face Recognition Setup (WAJIB) -->
                             <div class="mb-4">
                                 <div class="card face-recognition-card">
                                     <div class="card-header">
                                         <h6 class="mb-1">
                                             <i class="fas fa-face-smile me-2"></i>
-                                            Setup Face Recognition (Opsional)
+                                            Setup Face Recognition <span class="badge bg-danger ms-2">WAJIB</span>
                                         </h6>
-                                        <small class="opacity-75">Untuk keamanan tambahan saat absensi</small>
+                                        <small class="opacity-75">Diperlukan untuk verifikasi identitas saat
+                                            absensi</small>
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
@@ -303,11 +307,15 @@
                                                         <i class="fas fa-camera me-1"></i>Ambil Foto
                                                     </button>
                                                     <div class="mt-2">
-                                                        <label for="face_image" class="form-label small">Atau upload
-                                                            foto:</label>
+                                                        <label for="face_image" class="form-label small">
+                                                            Atau upload foto: <span class="text-danger">*</span>
+                                                        </label>
                                                         <input type="file"
                                                             class="form-control form-control-sm face-file-input"
-                                                            id="face_image" name="face_image" accept="image/*">
+                                                            id="face_image" name="face_image" accept="image/*" required>
+                                                        <div class="invalid-feedback">
+                                                            Foto wajah (wajib diupload)
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -316,10 +324,19 @@
                                         <div class="mt-3">
                                             <div class="alert face-info-alert">
                                                 <small>
-                                                    <i class="fas fa-info-circle me-1"></i>
-                                                    <strong>Tips:</strong> Pastikan wajah terlihat jelas, pencahayaan
-                                                    cukup, dan hanya satu wajah dalam foto.
+                                                    <i class="fas fa-exclamation-circle me-1"></i>
+                                                    <strong>Penting:</strong>
+                                                    Pastikan wajah terlihat jelas, pencahayaan cukup, dan hanya satu
+                                                    wajah dalam foto.
                                                 </small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Validation feedback -->
+                                        <div id="face-validation" class="mt-2" style="display: none;">
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                                <span id="face-validation-message"></span>
                                             </div>
                                         </div>
                                     </div>
@@ -347,7 +364,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Username availability check
         document.getElementById('username').addEventListener('blur', function () {
             const username = this.value.trim();
             const feedback = document.getElementById('username-feedback');
@@ -394,22 +410,10 @@
             }
         });
 
-        // Form submission validation
-        document.getElementById('registerForm').addEventListener('submit', function (e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('Password dan konfirmasi password tidak cocok!');
-                return;
-            }
-        });
-
-
         // Face recognition variables
         let camera = null;
         let capturedImageBlob = null;
+        let faceImageRequired = true;
 
         // Camera functions
         function startCamera() {
@@ -427,7 +431,7 @@
                 })
                 .catch(function (err) {
                     console.log("Error accessing camera: " + err);
-                    alert("Error mengakses kamera. Anda bisa upload foto manual.");
+                    showFaceValidation("Error mengakses kamera. Silakan upload foto secara manual.", 'warning');
                 });
         }
 
@@ -463,6 +467,12 @@
                 dataTransfer.items.add(file);
                 document.getElementById('face_image').files = dataTransfer.files;
 
+                // Remove validation error if exists
+                hideFaceValidation();
+                document.getElementById('face_image').classList.remove('is-invalid');
+
+                showFaceValidation("Foto wajah berhasil diambil!", 'success');
+
             }, 'image/jpeg', 0.8);
         }
 
@@ -485,11 +495,29 @@
             // Clear file input
             document.getElementById('face_image').value = '';
             capturedImageBlob = null;
+
+            hideFaceValidation();
         }
 
         // Handle manual file upload
         document.getElementById('face_image').addEventListener('change', function (e) {
             if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    showFaceValidation("File yang dipilih bukan gambar yang valid.", 'danger');
+                    this.value = '';
+                    return;
+                }
+
+                // Validate file size (max 5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    showFaceValidation("Ukuran file terlalu besar. Maksimal 5MB.", 'danger');
+                    this.value = '';
+                    return;
+                }
+
                 // Hide camera if active
                 if (camera) {
                     camera.getTracks().forEach(track => track.stop());
@@ -503,7 +531,98 @@
                 captureBtn.innerHTML = '<i class="fas fa-camera me-1"></i>Ambil Foto';
                 captureBtn.onclick = capturePhoto;
                 captureBtn.disabled = true;
+
+                // Remove preview if exists
+                const preview = document.getElementById('capturedPreview');
+                if (preview) {
+                    preview.remove();
+                }
+
+                // Show success message
+                showFaceValidation("File foto berhasil dipilih!", 'success');
+                this.classList.remove('is-invalid');
+                setTimeout(() => hideFaceValidation(), 3000);
             }
+        });
+
+        // Validation helper functions
+        function showFaceValidation(message, type) {
+            const validationDiv = document.getElementById('face-validation');
+            const messageSpan = document.getElementById('face-validation-message');
+
+            messageSpan.textContent = message;
+            validationDiv.style.display = 'block';
+
+            // Remove existing classes
+            validationDiv.querySelector('.alert').className = 'alert';
+
+            // Add appropriate class based on type
+            switch (type) {
+                case 'success':
+                    validationDiv.querySelector('.alert').classList.add('alert-success');
+                    break;
+                case 'danger':
+                    validationDiv.querySelector('.alert').classList.add('alert-danger');
+                    break;
+                case 'warning':
+                    validationDiv.querySelector('.alert').classList.add('alert-warning');
+                    break;
+                default:
+                    validationDiv.querySelector('.alert').classList.add('alert-info');
+            }
+        }
+
+        function hideFaceValidation() {
+            const validationDiv = document.getElementById('face-validation');
+            validationDiv.style.display = 'none';
+        }
+
+        // UPDATED Form submission validation - MANDATORY FACE CHECK
+        document.getElementById('registerForm').addEventListener('submit', function (e) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const faceInput = document.getElementById('face_image');
+
+            // Check password match
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Password dan konfirmasi password tidak cocok!');
+                return;
+            }
+
+            // MANDATORY: Check face image requirement
+            if (!faceInput.files || faceInput.files.length === 0) {
+                e.preventDefault();
+                faceInput.classList.add('is-invalid');
+                showFaceValidation('Foto wajah WAJIB diupload untuk registrasi!', 'danger');
+
+                // Scroll to face section
+                document.querySelector('.face-recognition-card').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+
+                // Focus on the file input
+                setTimeout(() => {
+                    faceInput.focus();
+                }, 500);
+
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Mendaftarkan...';
+
+            // Re-enable button after 15 seconds (fallback in case of error)
+            setTimeout(() => {
+                if (submitBtn.disabled) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }, 15000);
         });
 
         // Stop camera when page unloads
@@ -511,6 +630,26 @@
             if (camera) {
                 camera.getTracks().forEach(track => track.stop());
             }
+        });
+
+        // Additional validation on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Make sure the face input shows as required
+            const faceInput = document.getElementById('face_image');
+            faceInput.setAttribute('required', 'true');
+
+            // Add visual indication that field is required
+            const label = document.querySelector('label[for="face_image"]');
+            if (label && !label.querySelector('.text-danger')) {
+                label.innerHTML += ' <span class="text-danger">*</span>';
+            }
+        });
+
+        // Real-time validation feedback
+        document.getElementById('face_image').addEventListener('invalid', function (e) {
+            e.preventDefault();
+            this.classList.add('is-invalid');
+            showFaceValidation('Foto wajah wajib diupload!', 'danger');
         });
     </script>
 </body>
