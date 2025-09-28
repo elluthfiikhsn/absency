@@ -5,6 +5,7 @@ import psycopg2
 import psycopg2.extras
 from urllib.parse import urlparse
 import os
+import sqlite3  # Add this import
 from datetime import datetime
 import uuid
 import json
@@ -14,9 +15,9 @@ from io import BytesIO
 from flask import send_file
 from datetime import datetime, timedelta
 import tempfile
+import math
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
-
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
@@ -34,7 +35,6 @@ except ImportError:
 # Import custom modules
 from register_web import init_web_registration
 
-# Initialize database on startup
 def get_db_connection():
     """Get database connection - supports both SQLite and PostgreSQL"""
     if DATABASE_URL:
@@ -47,7 +47,7 @@ def get_db_connection():
                 password=url.password,
                 host=url.hostname,
                 port=url.port,
-                cursor_factory=psycopg2.extras.RealDictCursor  # This makes results behave like sqlite3.Row
+                cursor_factory=psycopg2.extras.RealDictCursor
             )
             conn.autocommit = True
             return conn
@@ -59,23 +59,6 @@ def get_db_connection():
         conn = sqlite3.connect('database.db')
         conn.row_factory = sqlite3.Row
         return conn
-
-# Call initialization
-def init_db_if_needed():
-    """Initialize database if needed"""
-    if DATABASE_URL:
-        print("Using PostgreSQL database...")
-        try:
-            from init_postgresql import init_postgresql_database
-            init_postgresql_database()
-        except Exception as e:
-            print(f"Error initializing PostgreSQL: {e}")
-    else:
-        print("Using SQLite database...")
-        if not os.path.exists('database.db'):
-            print("Database not found. Initializing...")
-            from init_db import init_database
-            init_database()
 
 def execute_query(query, params=None, fetch=None):
     """
@@ -122,8 +105,6 @@ def execute_query(query, params=None, fetch=None):
         conn.close()
         raise e
 
-
-# Helper functions for common database operations
 def get_user_by_username(username):
     """Get user by username"""
     return execute_query(
@@ -168,14 +149,31 @@ def create_user(username, full_name, email, password, role='user'):
         conn.commit()
         conn.close()
         return user_id
-        
+
+def init_db_if_needed():
+    """Initialize database if needed"""
+    if DATABASE_URL:
+        print("Using PostgreSQL database...")
+        try:
+            from init_postgresql import init_postgresql_database
+            init_postgresql_database()
+        except Exception as e:
+            print(f"Error initializing PostgreSQL: {e}")
+    else:
+        print("Using SQLite database...")
+        if not os.path.exists('database.db'):
+            print("Database not found. Initializing...")
+            from init_db import init_database
+            init_database()
+
+# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['FACES_FOLDER'] = 'faces'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-
+# Create directories if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['FACES_FOLDER'], exist_ok=True)
 
@@ -184,12 +182,6 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_db_connection():
-    """Get database connection"""
-    conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def login_required(f):
     """Decorator to require login for routes"""
@@ -209,18 +201,26 @@ def verify_face_for_attendance(image_file, user_id):
     try:
         # Get stored face encoding from database
         conn = get_db_connection()
-        face_data = conn.execute(
-            'SELECT face_encoding FROM face_data WHERE user_id = ? AND active = 1',
-            (user_id,)
-        ).fetchone()
+        if DATABASE_URL:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT face_encoding FROM face_data WHERE user_id = %s AND active = TRUE',
+                (user_id,)
+            )
+            face_data = cursor.fetchone()
+            cursor.close()
+        else:
+            face_data = conn.execute(
+                'SELECT face_encoding FROM face_data WHERE user_id = ? AND active = 1',
+                (user_id,)
+            ).fetchone()
         conn.close()
         
-        if not face_data:
-            # No face data stored, allow attendance but warn
+        if not face_data or not face_data['face_encoding']:
             return True, "No face data registered, attendance allowed"
         
         # Load stored encoding
-        stored_encoding = np.array(json.loads(face_data[0]))
+        stored_encoding = np.array(json.loads(face_data['face_encoding']))
         
         # Process uploaded image
         image = face_recognition.load_image_file(image_file)
@@ -247,6 +247,16 @@ def verify_face_for_attendance(image_file, user_id):
             
     except Exception as e:
         return False, f"Error verifying face: {str(e)}"
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Calculate distance between two coordinate points (meters)"""
+    R = 6371000  # Earth radius in meters
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
 
 
 @app.route('/absensi')
@@ -2543,5 +2553,6 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
 
 
