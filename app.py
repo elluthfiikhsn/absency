@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-import sqlite3
 import os
 from datetime import datetime
 import uuid
@@ -13,6 +12,8 @@ from flask import send_file
 from datetime import datetime, timedelta
 import tempfile
 
+
+from config import Config
 
 # Face recognition imports (optional)
 FACE_RECOGNITION_AVAILABLE = False
@@ -33,10 +34,37 @@ from register_web import init_web_registration
 # Initialize database on startup
 def init_db_if_needed():
     """Initialize database if it doesn't exist"""
-    if not os.path.exists('database.db'):
-        print("Database not found. Initializing...")
-        from init_db import init_database
-        init_database()
+    try:
+        conn = Config.get_connection()
+        cursor = conn.cursor()
+        
+        # Test if tables exist
+        if Config.get_db_config():  # PostgreSQL
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'users'
+            """)
+        else:  # SQLite
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        
+        if not cursor.fetchone():
+            print("Database tables not found. Initializing...")
+            cursor.close()
+            conn.close()
+            
+            if Config.get_db_config():  # PostgreSQL
+                from init_db_postgresql import init_postgresql_database
+                init_postgresql_database()
+            else:  # SQLite
+                from init_db import init_database
+                init_database()
+        else:
+            cursor.close()
+            conn.close()
+            print("Database already initialized")
+            
+    except Exception as e:
+        print(f"Database initialization error: {e}")
 
 # Call initialization
 init_db_if_needed()
@@ -58,10 +86,8 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_db_connection():
-    """Get database connection"""
-    conn = sqlite3.connect('database.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Get database connection using Config"""
+    return Config.get_connection()
 
 def login_required(f):
     """Decorator to require login for routes"""
@@ -81,10 +107,13 @@ def verify_face_for_attendance(image_file, user_id):
     try:
         # Get stored face encoding from database
         conn = get_db_connection()
-        face_data = conn.execute(
-            'SELECT face_encoding FROM face_data WHERE user_id = ? AND active = 1',
-            (user_id,)
-        ).fetchone()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT face_encoding FROM face_data WHERE user_id = %s AND active = %s',
+            (user_id, True)
+        )
+        face_data = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         if not face_data:
@@ -126,41 +155,45 @@ def verify_face_for_attendance(image_file, user_id):
 def absensi():
     """Attendance page"""
     conn = get_db_connection()
+    cursor = conn.cursor()
     
     # Get today's attendance
     today = datetime.now().strftime("%Y-%m-%d")
-    attendance = conn.execute(
-        'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
+    cursor.execute(
+        'SELECT * FROM attendance WHERE user_id = %s AND date = %s',
         (session['user_id'], today)
-    ).fetchone()
+    )
+    attendance = cursor.fetchone()
     
-    # Get allowed coordinates - TAMBAHKAN INI!
-    coordinates_rows = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
+    # Get allowed coordinates
+    cursor.execute('SELECT * FROM coordinates WHERE active = %s', (True,))
+    coordinates_rows = cursor.fetchall()
     
-    # Convert Row objects to dict untuk JSON serialization
-    coordinates = [dict(row) for row in coordinates_rows]
+    # Convert to list of dicts
+    coordinates = []
+    for row in coordinates_rows:
+        coordinates.append(dict(row))
     
     # Check if user has face recognition enabled
-    face_enabled = conn.execute(
-        'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-        (session['user_id'],)
-    ).fetchone()[0] > 0
+    cursor.execute(
+        'SELECT COUNT(*) FROM face_data WHERE user_id = %s AND active = %s',
+        (session['user_id'], True)
+    )
+    face_enabled = cursor.fetchone()[0] > 0
     
+    cursor.close()
     conn.close()
     
     return render_template('absensi.html', 
-                         attendance=attendance, 
-                         coordinates=coordinates,  # PASS coordinates ke template
+                         attendance=dict(attendance) if attendance else None,
+                         coordinates=coordinates,
                          face_enabled=face_enabled,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
 
-     
 import math
 def haversine(lat1, lon1, lat2, lon2):
-    """
-    Hitung jarak antara dua titik koordinat (meter)
-    """
-    R = 6371000  # radius bumi dalam meter
+    """Calculate distance between two coordinate points (meters)"""
+    R = 6371000  # Earth radius in meters
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
@@ -284,44 +317,46 @@ def absen_masuk():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error: {str(e)}'})    
     
-@app.route('/absen_keluar', methods=['POST'])
-@login_required  
-def absen_keluar():
-    """Clock out endpoint with flexible face verification"""
+@app.route('/absen_masuk', methods=['POST'])
+@login_required
+def absen_masuk():
+    """Clock in endpoint with flexible face verification"""
     try:
         latitude = float(request.form.get('latitude', 0))
         longitude = float(request.form.get('longitude', 0))
-
+        
         conn = get_db_connection()
+        cursor = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
         now = datetime.now().strftime("%H:%M:%S")
 
-        # Cek sudah absen masuk
-        attendance = conn.execute(
-            'SELECT id, time_out FROM attendance WHERE user_id = ? AND date = ?',
-            (session['user_id'], today)
-        ).fetchone()
-
-        if not attendance:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Anda belum absen masuk hari ini!'})
-
-        if attendance['time_out']:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Anda sudah absen keluar hari ini!'})
-
-        # Validasi lokasi
-        coordinates = conn.execute('SELECT * FROM coordinates WHERE active = 1').fetchall()
+        # Location validation
+        cursor.execute('SELECT * FROM coordinates WHERE active = %s', (True,))
+        coordinates = cursor.fetchall()
         in_area = False
         for coord in coordinates:
-            distance = haversine(latitude, longitude, coord['latitude'], coord['longitude'])
-            if distance <= coord['radius']:
+            coord_dict = dict(coord)
+            distance = haversine(latitude, longitude, float(coord_dict['latitude']), float(coord_dict['longitude']))
+            if distance <= coord_dict['radius']:
                 in_area = True
                 break
 
         if not in_area:
+            cursor.close()
             conn.close()
             return jsonify({'success': False, 'message': 'Anda berada di luar area absensi!'})
+
+        # Check if already checked in today
+        cursor.execute(
+            'SELECT id FROM attendance WHERE user_id = %s AND date = %s',
+            (session['user_id'], today)
+        )
+        existing = cursor.fetchone()
+        
+        if existing:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Anda sudah absen hari ini!'})
 
         # Face recognition - ADMIN EXCEPTION & FLEXIBLE FOR USERS
         user_role = session.get('role', 'user')
@@ -333,10 +368,11 @@ def absen_keluar():
             face_message = "Admin - face verification bypassed"
         else:
             # Check if user has face data
-            face_enabled = conn.execute(
-                'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-                (session['user_id'],)
-            ).fetchone()[0] > 0
+            cursor.execute(
+                'SELECT COUNT(*) FROM face_data WHERE user_id = %s AND active = %s',
+                (session['user_id'], True)
+            )
+            face_enabled = cursor.fetchone()[0] > 0
             
             face_verified = False
             face_message = ""
@@ -346,7 +382,7 @@ def absen_keluar():
         if 'photo' in request.files and request.files['photo'].filename != '':
             file = request.files['photo']
             if file and allowed_file(file.filename):
-                filename = f"{session['user_id']}_keluar_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                filename = f"{session['user_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
                 photo_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(photo_path)
                 
@@ -355,6 +391,7 @@ def absen_keluar():
                     if not face_verified:
                         if os.path.exists(photo_path):
                             os.remove(photo_path)
+                        cursor.close()
                         conn.close()
                         return jsonify({'success': False, 'message': f'{face_message}'})
                 else:
@@ -367,6 +404,7 @@ def absen_keluar():
                         face_message = "Face recognition disabled or not available"
         elif face_enabled and user_role != 'admin':
             # Only require photo if user has face data setup
+            cursor.close()
             conn.close()
             return jsonify({'success': False, 'message': 'Foto wajah diperlukan untuk verifikasi identitas'})
         elif not face_enabled and user_role != 'admin':
@@ -377,31 +415,32 @@ def absen_keluar():
             # Admin case
             face_verified = True
             face_message = "Admin access"
-
-        # Update record attendance
-        conn.execute(
-            'UPDATE attendance SET time_out = ?, latitude_out = ?, longitude_out = ?, photo_path_out = ? WHERE id = ?',
-            (now, latitude, longitude, photo_path, attendance['id'])
+        
+        cursor.execute(
+            '''INSERT INTO attendance (user_id, date, time_in, latitude, longitude, photo_path)
+               VALUES (%s, %s, %s, %s, %s, %s)''',
+            (session['user_id'], today, now, latitude, longitude, photo_path)
         )
 
         # Log
-        conn.execute(
+        cursor.execute(
             '''INSERT INTO attendance_logs (user_id, action, latitude, longitude, success)
-               VALUES (?, ?, ?, ?, ?)''',
-            (session['user_id'], 'check_out', latitude, longitude, 1)
+               VALUES (%s, %s, %s, %s, %s)''',
+            (session['user_id'], 'check_in', latitude, longitude, True)
         )
 
         conn.commit()
+        cursor.close()
         conn.close()
-
-        success_message = 'Absen keluar berhasil!'
+        
+        success_message = 'Absen masuk berhasil!'
         if face_message:
             success_message += f' {face_message}'
-
+        
         return jsonify({'success': True, 'message': success_message})
-
+        
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'})    
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
     
     
 @app.route('/debug/set_admin/admin')
@@ -1832,47 +1871,54 @@ def login():
         password = request.form['password']
         
         conn = get_db_connection()
-        user = conn.execute(
-            'SELECT * FROM users WHERE username = ? AND active = 1', (username,)
-        ).fetchone()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT * FROM users WHERE username = %s AND active = %s', (username, True)
+        )
+        user = cursor.fetchone()
         
         if user and check_password_hash(user['password'], password):
+            user_dict = dict(user)
+            
             # ADMIN EXCEPTION: Admin users don't need face data
-            if user['role'] == 'admin':
+            if user_dict['role'] == 'admin':
                 # Clear any existing session first
                 session.clear()
                 
                 # Set session data for admin
-                session['user_id'] = user['id']
-                session['username'] = user['username']
-                session['full_name'] = user['full_name']
-                session['role'] = user['role']
+                session['user_id'] = user_dict['id']
+                session['username'] = user_dict['username']
+                session['full_name'] = user_dict['full_name']
+                session['role'] = user_dict['role']
                 
+                cursor.close()
                 conn.close()
                 flash('Login admin berhasil!', 'success')
                 return redirect(url_for('index'))
             
             # For non-admin users, check face data but allow login
-            face_data = conn.execute(
-                'SELECT COUNT(*) as count FROM face_data WHERE user_id = ? AND active = 1',
-                (user['id'],)
-            ).fetchone()
+            cursor.execute(
+                'SELECT COUNT(*) FROM face_data WHERE user_id = %s AND active = %s',
+                (user_dict['id'], True)
+            )
+            face_count = cursor.fetchone()[0]
             
             # Clear any existing session first
             session.clear()
             
             # Set new session data
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['full_name'] = user['full_name']
-            session['role'] = user['role'] if 'role' in user.keys() else 'user'
+            session['user_id'] = user_dict['id']
+            session['username'] = user_dict['username']
+            session['full_name'] = user_dict['full_name']
+            session['role'] = user_dict.get('role', 'user')
             
             # Set face status in session for later use
-            session['has_face_data'] = face_data['count'] > 0
+            session['has_face_data'] = face_count > 0
             
+            cursor.close()
             conn.close()
             
-            if face_data['count'] == 0:
+            if face_count == 0:
                 # Allow login but show warning about face setup
                 flash('Login berhasil! Namun face recognition belum disetup. Silakan setup di menu profil untuk keamanan absensi.', 'warning')
             else:
@@ -1880,6 +1926,7 @@ def login():
                 
             return redirect(url_for('index'))
         else:
+            cursor.close()
             conn.close()
             flash('Username atau password salah, atau akun tidak aktif!', 'error')
     
@@ -2372,42 +2419,50 @@ def index():
         return redirect(url_for('login'))
     
     conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM users WHERE id = %s', (session['user_id'],))
+    user = cursor.fetchone()
     
     # Get today's attendance
     today = datetime.now().strftime("%Y-%m-%d")
-    attendance = conn.execute(
-        'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
+    cursor.execute(
+        'SELECT * FROM attendance WHERE user_id = %s AND date = %s',
         (session['user_id'], today)
-    ).fetchone()
+    )
+    attendance = cursor.fetchone()
     
     # Get attendance statistics
-    stats = conn.execute(
+    cursor.execute(
         '''SELECT 
            COUNT(*) as total_days,
            SUM(CASE WHEN time_in IS NOT NULL THEN 1 ELSE 0 END) as present_days
-           FROM attendance WHERE user_id = ?''',
+           FROM attendance WHERE user_id = %s''',
         (session['user_id'],)
-    ).fetchone()
+    )
+    stats = cursor.fetchone()
     
     # Check if user has face recognition enabled
-    face_enabled = conn.execute(
-        'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
-        (session['user_id'],)
-    ).fetchone()[0] > 0
+    cursor.execute(
+        'SELECT COUNT(*) FROM face_data WHERE user_id = %s AND active = %s',
+        (session['user_id'], True)
+    )
+    face_enabled = cursor.fetchone()[0] > 0
     
     # Check if should show face setup reminder
     show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
     
+    cursor.close()
     conn.close()
     
     return render_template('index.html', 
-                         user=user, 
-                         attendance=attendance, 
-                         stats=stats,
+                         user=dict(user) if user else None,
+                         attendance=dict(attendance) if attendance else None, 
+                         stats=dict(stats) if stats else None,
                          face_enabled=face_enabled,
                          show_face_reminder=show_face_reminder,
                          face_recognition_available=FACE_RECOGNITION_AVAILABLE)
+
 
 if __name__ == '__main__':
     # Create directories if they don't exist
@@ -2415,12 +2470,13 @@ if __name__ == '__main__':
     # Initialize web registration
     if FACE_RECOGNITION_AVAILABLE:
         init_web_registration(app)
-        print("âœ… Face recognition enabled")
+        print("✅ Face recognition enabled")
     else:
-        print("âš ï¸ Face recognition disabled - install required packages")
+        print("⚠️ Face recognition disabled - install required packages")
     
     # Production-ready settings
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
 
