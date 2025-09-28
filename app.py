@@ -1717,19 +1717,14 @@ def login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['full_name'] = user['full_name']
-            session['role'] = user['role']  # Add role to session
-            
-            # Check if user should see face setup reminder
-            if session.get('show_face_setup_reminder'):
-                session.pop('show_face_setup_reminder', None)
-                session['show_face_reminder_on_dashboard'] = True
+            session['role'] = user['role'] if 'role' in user.keys() else 'user'
             
             flash('Login berhasil!', 'success')
             return redirect(url_for('index'))
         else:
             flash('Username atau password salah, atau akun tidak aktif!', 'error')
     
-    return render_template('login.html')@app.route('/api/set_face_reminder', methods=['POST'])
+    return render_template('login.html')
 @login_required
 def api_set_face_reminder():
     """API to set face recognition reminder for next login"""
@@ -2211,31 +2206,27 @@ def remove_face():
 
 @app.route('/')
 def index():
-    """Main dashboard page - redirect to login if not authenticated"""
-    # Check if user is logged in first
+    """Main page - redirect to login if not authenticated"""
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    # Check if session data is valid
+    # Your existing dashboard code here...
     conn = get_db_connection()
     try:
         user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
         
-        # If user doesn't exist in database, clear session
         if not user:
             session.clear()
             conn.close()
-            flash('Session expired. Please login again.', 'warning')
             return redirect(url_for('login'))
         
-        # Get today's attendance
+        # Rest of your dashboard logic...
         today = datetime.now().strftime("%Y-%m-%d")
         attendance = conn.execute(
             'SELECT * FROM attendance WHERE user_id = ? AND date = ?',
             (session['user_id'], today)
         ).fetchone()
         
-        # Get attendance statistics
         stats = conn.execute(
             '''SELECT 
                COUNT(*) as total_days,
@@ -2244,13 +2235,11 @@ def index():
             (session['user_id'],)
         ).fetchone()
         
-        # Check if user has face recognition enabled
         face_enabled = conn.execute(
             'SELECT COUNT(*) FROM face_data WHERE user_id = ? AND active = 1',
             (session['user_id'],)
         ).fetchone()[0] > 0
         
-        # Check if should show face setup reminder
         show_face_reminder = session.pop('show_face_reminder_on_dashboard', False) and not face_enabled
         
         conn.close()
@@ -2265,22 +2254,30 @@ def index():
                              
     except Exception as e:
         conn.close()
-        session.clear()  # Clear potentially corrupted session
-        flash('An error occurred. Please login again.', 'error')
+        session.clear()
         return redirect(url_for('login'))
 
 
-@app.route('/admin')
-@login_required
-def admin_dashboard():
-    """Admin dashboard"""
-    if session.get('role') != 'admin':
-        flash('Access denied. Admin only.', 'error')
-        return redirect(url_for('index'))
+# @app.route('/admin')
+# @login_required
+# def admin_dashboard():
+#     """Admin dashboard"""
+#     if session.get('role') != 'admin':
+#         flash('Access denied. Admin only.', 'error')
+#         return redirect(url_for('index'))
     
-    # Admin dashboard logic here
-    return render_template('admin_dashboard.html')
+#     # Admin dashboard logic here
+#     return render_template('admin_dashboard.html')
 
+@app.route('/debug/status')
+def debug_status():
+    """Debug app status"""
+    return jsonify({
+        'status': 'running',
+        'database_exists': os.path.exists('database.db'),
+        'face_recognition': FACE_RECOGNITION_AVAILABLE,
+        'session_data': dict(session) if session else None
+    })
 
 @app.before_request
 def validate_session():
@@ -2307,6 +2304,18 @@ def validate_session():
             if request.endpoint != 'login':
                 return redirect(url_for('login'))
 
+@app.route('/debug/routes')
+def list_routes():
+    """Debug: List all registered routes"""
+    routes = []
+    for rule in app.url_map.iter_rules():
+        routes.append({
+            'endpoint': rule.endpoint,
+            'methods': list(rule.methods),
+            'rule': rule.rule
+        })
+    return jsonify(routes)
+
 @app.route('/debug/clear_session')
 def clear_session():
     session.clear()
@@ -2328,6 +2337,7 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
     
+
 
 
 
