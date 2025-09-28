@@ -1703,7 +1703,7 @@ def api_weekly_attendance():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """User registration page with FLEXIBLE face recognition setup"""
+    """User registration page compatible with PostgreSQL"""
     if request.method == 'POST':
         username = request.form.get('username')
         full_name = request.form.get('full_name')
@@ -1733,7 +1733,7 @@ def register():
             flash('Password harus mengandung huruf dan angka!', 'error')
             return render_template('register.html')
         
-        # TEMPORARY: Make face image optional for testing
+        # Face image handling
         face_file = None
         face_required = False  # Set to True when ready to enforce
         
@@ -1741,7 +1741,7 @@ def register():
         
         if 'face_image' in request.files and request.files['face_image'].filename != '':
             face_file = request.files['face_image']
-            print(f"DEBUG: Face file received: {face_file.filename}, size: {face_file.content_length}")
+            print(f"DEBUG: Face file received: {face_file.filename}")
             
             if not allowed_file(face_file.filename):
                 flash('Format file foto tidak valid! Gunakan JPG, PNG, atau JPEG.', 'error')
@@ -1749,18 +1749,10 @@ def register():
         elif face_required:
             flash('Foto wajah WAJIB diupload untuk registrasi!', 'error')
             return render_template('register.html')
-        else:
-            print("DEBUG: No face file provided, but not required")
-        
-        conn = get_db_connection()
         
         # Check if username exists
-        existing_user = conn.execute(
-            'SELECT id FROM users WHERE username = ?', (username,)
-        ).fetchone()
-        
+        existing_user = get_user_by_username(username)
         if existing_user:
-            conn.close()
             flash('Username sudah digunakan!', 'error')
             return render_template('register.html')
         
@@ -1769,13 +1761,10 @@ def register():
             hashed_password = generate_password_hash(password)
             
             # Insert new user
-            cursor = conn.execute('''
-                INSERT INTO users (username, full_name, email, password, role, active)
-                VALUES (?, ?, ?, ?, 'user', 1)
-            ''', (username, full_name, email, hashed_password))
+            user_id = create_user(username, full_name, email, hashed_password, 'user')
             
-            user_id = cursor.lastrowid
-            conn.commit()
+            if not user_id:
+                raise Exception("Failed to create user")
             
             print(f"DEBUG: User created with ID: {user_id}")
             
@@ -1788,30 +1777,17 @@ def register():
                 if face_setup_success:
                     face_message = f"Registrasi berhasil! {face_message}"
                 else:
-                    # Log the error but don't fail registration
                     print(f"DEBUG: Face processing failed: {face_message}")
                     face_message = "Registrasi berhasil! (Face recognition setup gagal, bisa disetup nanti)"
             else:
                 face_message = "Registrasi berhasil! Face recognition dapat disetup nanti di profil."
             
-            conn.close()
-            
             print(f"DEBUG: Registration successful: {face_message}")
-            
-            # Success message
             flash(face_message, 'success')
             return redirect(url_for('login'))
             
         except Exception as e:
             print(f"DEBUG: Registration error: {str(e)}")
-            # Cleanup on error
-            try:
-                if 'user_id' in locals():
-                    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
-                    conn.commit()
-            except:
-                pass
-            conn.close()
             flash(f'Error saat registrasi: {str(e)}', 'error')
             return render_template('register.html')
     
@@ -1819,7 +1795,7 @@ def register():
 
 
 def process_face_registration(face_file, user_id, full_name):
-    """Process face image during registration - with enhanced error handling"""
+    """Process face image - PostgreSQL compatible"""
     try:
         print(f"DEBUG: Starting face processing for user {user_id}")
         
@@ -1835,13 +1811,31 @@ def process_face_registration(face_file, user_id, full_name):
         face_file.save(image_path)
         print(f"DEBUG: Image saved to: {image_path}")
         
-        # Always save to database first (even without encoding)
-        conn = get_db_connection()
-        conn.execute('''
-            INSERT INTO face_data (user_id, photo_path, active)
-            VALUES (?, ?, 1)
-        ''', (user_id, image_path))
-        face_data_id = conn.lastrowid
+        # Insert face data
+        if DATABASE_URL:
+            # PostgreSQL
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO face_data (user_id, photo_path, active)
+                VALUES (%s, %s, TRUE)
+                RETURNING id
+            ''', (user_id, image_path))
+            result = cursor.fetchone()
+            face_data_id = result['id'] if result else None
+            cursor.close()
+            conn.close()
+        else:
+            # SQLite
+            conn = get_db_connection()
+            cursor = conn.execute('''
+                INSERT INTO face_data (user_id, photo_path, active)
+                VALUES (?, ?, 1)
+            ''', (user_id, image_path))
+            face_data_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+        
         print(f"DEBUG: Face data record created with ID: {face_data_id}")
         
         # Try face processing if available
@@ -1854,42 +1848,42 @@ def process_face_registration(face_file, user_id, full_name):
                 
                 if not face_encodings:
                     print("DEBUG: No faces detected in image")
-                    conn.commit()
-                    conn.close()
                     return True, "Foto wajah disimpan (wajah tidak terdeteksi untuk encoding)!"
                 
                 if len(face_encodings) > 1:
                     print(f"DEBUG: Multiple faces detected: {len(face_encodings)}")
-                    conn.commit()
-                    conn.close()
                     return True, "Foto wajah disimpan (multiple faces detected, no encoding)!"
                 
                 # Save encoding to database
                 face_encoding = face_encodings[0]
                 encoding_json = json.dumps(face_encoding.tolist())
                 
-                conn.execute('''
-                    UPDATE face_data SET face_encoding = ? WHERE id = ?
-                ''', (encoding_json, face_data_id))
+                if DATABASE_URL:
+                    # PostgreSQL
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE face_data SET face_encoding = %s WHERE id = %s
+                    ''', (encoding_json, face_data_id))
+                    cursor.close()
+                    conn.close()
+                else:
+                    # SQLite
+                    conn = get_db_connection()
+                    conn.execute('''
+                        UPDATE face_data SET face_encoding = ? WHERE id = ?
+                    ''', (encoding_json, face_data_id))
+                    conn.commit()
+                    conn.close()
                 
                 print("DEBUG: Face encoding saved successfully")
-                conn.commit()
-                conn.close()
-                
                 return True, "Face recognition berhasil disetup dengan encoding!"
                 
             except Exception as face_error:
                 print(f"DEBUG: Face recognition error: {str(face_error)}")
-                # Keep the photo record without encoding
-                conn.commit()
-                conn.close()
                 return True, f"Foto wajah disimpan (face processing error, bisa diproses nanti)!"
         else:
             print("DEBUG: Face recognition not available")
-            # Save without encoding
-            conn.commit()
-            conn.close()
-            
             return True, "Foto wajah berhasil disimpan!"
             
     except Exception as e:
@@ -1902,11 +1896,9 @@ def process_face_registration(face_file, user_id, full_name):
             if 'user_folder' in locals() and os.path.exists(user_folder) and not os.listdir(user_folder):
                 os.rmdir(user_folder)
                 print("DEBUG: Cleaned up empty folder")
-            if 'conn' in locals():
-                conn.close()
         except:
             pass
-        return False, f"Error memproses foto wajah: {str(e)}"    
+        return False, f"Error memproses foto wajah: {str(e)}"   
     
 @app.route('/debug/test_registration')
 def debug_test_registration():
@@ -2551,4 +2543,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
 
